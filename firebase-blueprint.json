@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Student profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name of the student" },
+        "email": { "type": "string", "format": "email", "description": "Student email address" },
+        "projectTitle": { "type": "string", "description": "Title of the student's project" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "LogEntry": {
+      "title": "Log Entry",
+      "description": "Weekly project activity log",
+      "type": "object",
+      "properties": {
+        "weekNumber": { "type": "number", "description": "The week number of the project" },
+        "description": { "type": "string", "description": "Brief description of activities" },
+        "evidenceUrl": { "type": "string", "format": "uri", "description": "URL to the uploaded evidence file" },
+        "evidenceName": { "type": "string", "description": "Original name of the uploaded file" },
+        "evidenceType": { "type": "string", "description": "MIME type or extension of the file" },
+        "studentId": { "type": "string", "description": "UID of the student who submitted the log" },
+        "studentName": { "type": "string", "description": "Name of the student for quick display" },
+        "groupId": { "type": "string", "description": "ID of the group this log belongs to" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Submission timestamp" }
+      },
+      "required": ["weekNumber", "description", "evidenceUrl", "studentId", "groupId"]
+    },
+    "ProjectGroup": {
+      "title": "Project Group",
+      "description": "A group of students working on a project",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the project group" },
+        "members": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of student UIDs in this group" 
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Group creation timestamp" }
+      },
+      "required": ["name", "members"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of student profiles"
+    },
+    "/logs/{logId}": {
+      "schema": "LogEntry",
+      "description": "Collection of weekly log entries"
+    },
+    "/groups/{groupId}": {
+      "schema": "ProjectGroup",
+      "description": "Collection of project groups"
+    }
+  }
+}
