@@ -10,7 +10,7 @@ class LogbookBase(BaseModel):
     evidence_url: str = Field(min_length=1)
     evidence_name: str | None = Field(default=None, max_length=255)
     evidence_type: str | None = Field(default=None, max_length=100)
-    mahasiswa_id: UUID
+    mahasiswa_id: str
     grup_id: UUID
 
 

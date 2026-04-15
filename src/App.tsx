@@ -75,6 +75,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+const API_BASE_URL = 'http://localhost:8000';
+
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -96,7 +98,7 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [newGroupName, setNewGroupName] = useState('');
 
-  const ADMIN_EMAIL = "wisard.kalengkongan@unsrat.ac.id";
+  const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -120,6 +122,28 @@ export default function App() {
             const userData = userDoc.data() as UserProfile;
             setProfile(userData);
             setIsAdmin(firebaseUser.email === ADMIN_EMAIL || userData.role === 'admin');
+
+            // Sync with Postgres on login
+            try {
+              const res = await fetch(`${API_BASE_URL}/mahasiswa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nama: userData.name,
+                  email: userData.email,
+                  id: userData.uid,
+                  role: userData.role
+                })
+              });
+              if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Postgres sync error:", errorData);
+              } else {
+                console.log("Postgres sync success for existing user");
+              }
+            } catch (err) {
+              console.error("Failed to sync user to Postgres:", err);
+            }
           } else {
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
@@ -131,6 +155,28 @@ export default function App() {
             await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
             setProfile(newProfile);
             setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
+
+            // Sync new user with Postgres
+            try {
+              const res = await fetch(`${API_BASE_URL}/mahasiswa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nama: newProfile.name,
+                  email: newProfile.email,
+                  id: newProfile.uid,
+                  role: newProfile.role
+                })
+              });
+              if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Postgres sync error:", errorData);
+              } else {
+                console.log("Postgres sync success for new user");
+              }
+            } catch (err) {
+              console.error("Failed to sync new user to Postgres:", err);
+            }
           }
         } catch (error) {
           console.error("Error fetching profile:", error);
@@ -277,6 +323,37 @@ export default function App() {
       };
 
       await addDoc(collection(db, 'logs'), logData);
+
+      // 3. Save to Postgres
+      try {
+        // Find student in Postgres by email
+        const studentRes = await fetch(`${API_BASE_URL}/mahasiswa`);
+        const students = await studentRes.json();
+        const pgStudent = students.find((s: any) => s.email === profile.email);
+
+        // Find group in Postgres by name
+        const groupRes = await fetch(`${API_BASE_URL}/grup`);
+        const groupsList = await groupRes.json();
+        const pgGroup = groupsList.find((g: any) => g.nama === userGroup.name);
+
+        if (pgStudent && pgGroup) {
+          await fetch(`${API_BASE_URL}/logbook`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              week_number: weekNumber,
+              description,
+              evidence_url: downloadUrl,
+              evidence_name: file.name,
+              evidence_type: file.type,
+              mahasiswa_id: user.uid,
+              grup_id: pgGroup.id
+            })
+          });
+        }
+      } catch (err) {
+        console.error("Failed to sync logbook to Postgres:", err);
+      }
       
       toast.success('Logbook berhasil disimpan');
       setIsDialogOpen(false);
@@ -305,11 +382,24 @@ export default function App() {
     if (!newGroupName.trim()) return;
 
     try {
+      // 1. Save to Firebase
       await addDoc(collection(db, 'groups'), {
         name: newGroupName,
         members: [],
         createdAt: serverTimestamp(),
       });
+
+      // 2. Save to Postgres
+      try {
+        await fetch(`${API_BASE_URL}/grup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: newGroupName })
+        });
+      } catch (err) {
+        console.error("Failed to sync group to Postgres:", err);
+      }
+
       setNewGroupName('');
       toast.success('Kelompok berhasil dibuat');
     } catch (error) {
@@ -323,6 +413,9 @@ export default function App() {
       const group = groups.find(g => g.id === groupId);
       if (!group) return;
 
+      const student = allUsers.find(u => u.uid === studentUid);
+      if (!student) return;
+
       let newMembers = [...group.members];
       if (isMember) {
         newMembers = newMembers.filter(id => id !== studentUid);
@@ -330,7 +423,37 @@ export default function App() {
         newMembers.push(studentUid);
       }
 
+      // 1. Update Firebase
       await updateDoc(groupRef, { members: newMembers });
+
+      // 2. Sync with Postgres
+      try {
+        // Find group in Postgres by name to get UUID
+        const groupListRes = await fetch(`${API_BASE_URL}/grup`);
+        const groupList = await groupListRes.json();
+        const pgGroup = groupList.find((g: any) => g.nama === group.name);
+
+        if (pgGroup) {
+          const res = await fetch(`${API_BASE_URL}/mahasiswa`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: student.uid,
+              nama: student.name,
+              email: student.email,
+              role: student.role,
+              grup_id: isMember ? null : pgGroup.id
+            })
+          });
+          if (!res.ok) {
+            const errorData = await res.json();
+            console.error("Postgres member sync error:", errorData);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync member to Postgres:", err);
+      }
+
       toast.success(isMember ? 'Anggota dihapus' : 'Anggota ditambahkan');
     } catch (error) {
       toast.error('Gagal memperbarui anggota');

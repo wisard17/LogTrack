@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS grup (
 -- Table: mahasiswa
 -- =========================
 CREATE TABLE IF NOT EXISTS mahasiswa (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,
   nama VARCHAR(150) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   role VARCHAR(20) NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin')),
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS logbook (
   evidence_url TEXT NOT NULL,
   evidence_name VARCHAR(255),
   evidence_type VARCHAR(100),
-  mahasiswa_id UUID NOT NULL REFERENCES mahasiswa(id) ON DELETE CASCADE,
+  mahasiswa_id TEXT NOT NULL REFERENCES mahasiswa(id) ON DELETE CASCADE,
   grup_id UUID NOT NULL REFERENCES grup(id) ON DELETE RESTRICT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

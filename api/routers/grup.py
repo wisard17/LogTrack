@@ -26,6 +26,14 @@ def get_grup(grup_id: UUID) -> dict:
 
 @router.post("", response_model=GrupResponse, status_code=201)
 def create_grup(payload: GrupCreate) -> dict:
+    # Check if group already exists by name
+    existing = fetch_one(
+        "SELECT id, nama, created_at FROM grup WHERE nama = :nama",
+        {"nama": payload.nama},
+    )
+    if existing:
+        return existing
+
     return execute_returning_one(
         """
         INSERT INTO grup (nama)

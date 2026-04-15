@@ -60,7 +60,7 @@ def create_logbook(payload: LogbookCreate) -> dict:
         """,
         {
             **payload.model_dump(),
-            "mahasiswa_id": str(payload.mahasiswa_id),
+            "mahasiswa_id": payload.mahasiswa_id,
             "grup_id": str(payload.grup_id),
         },
     )
@@ -84,7 +84,7 @@ def update_logbook(logbook_id: UUID, payload: LogbookUpdate) -> dict:
         {
             "id": str(logbook_id),
             **payload.model_dump(),
-            "mahasiswa_id": str(payload.mahasiswa_id),
+            "mahasiswa_id": payload.mahasiswa_id,
             "grup_id": str(payload.grup_id),
         },
     )
