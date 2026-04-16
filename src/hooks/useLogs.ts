@@ -29,7 +29,7 @@ export function useLogs(user: any, isAdmin: boolean, isAuthReady: boolean, group
     let qLogs;
     if (isAdmin) {
       qLogs = query(collection(db, 'logs'), orderBy('weekNumber', 'desc'));
-    } else if (userGroup) {
+    } else if (userGroup && userGroup.id) {
       qLogs = query(collection(db, 'logs'), where('groupId', '==', userGroup.id), orderBy('weekNumber', 'desc'));
     } else {
       qLogs = query(collection(db, 'logs'), where('studentId', '==', user.uid), orderBy('weekNumber', 'desc'));

@@ -66,10 +66,17 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
       return;
     }
 
+    if (!userGroup.id) {
+      toast.error('Data kelompok tidak valid (ID tidak ditemukan)');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      console.log("Starting upload for file:", file.name);
       const uploadData = await uploadFile(file);
       const downloadUrl = uploadData.url;
+      console.log("File uploaded successfully, URL:", downloadUrl);
 
       const logData = {
         weekNumber,
@@ -82,15 +89,26 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
         groupId: userGroup.id,
       };
 
+      console.log("Creating Firestore entry with data:", logData);
       await createLogEntry(logData);
-      await syncLogToPostgres(logData, profile, userGroup);
+      console.log("Firestore entry created successfully");
+      
+      try {
+        console.log("Syncing to Postgres...");
+        await syncLogToPostgres(logData, profile, userGroup);
+        console.log("Postgres sync successful");
+      } catch (pgError) {
+        console.error("Postgres sync failed (non-blocking):", pgError);
+        // We don't toast error here because the main log is already in Firestore
+      }
       
       toast.success('Logbook berhasil disimpan');
       setIsDialogOpen(false);
       resetForm();
-    } catch (error) {
-      console.error("Error submitting log:", error);
-      toast.error('Gagal menyimpan logbook');
+    } catch (error: any) {
+      console.error("Full error details during log submission:", error);
+      const errorMessage = error.message || 'Gagal menyimpan logbook';
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }

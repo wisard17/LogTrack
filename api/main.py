@@ -51,11 +51,10 @@ async def upload_file(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     # Return local access URL
-    # Assuming the API runs on API_BASE_URL (http://localhost:8000)
-    # The client can use this URL to access the file
+    # Use relative path to allow frontend proxy handling if needed
     return {
         "filename": file.filename,
-        "url": f"http://localhost:8000/uploads/{unique_filename}",
+        "url": f"/uploads/{unique_filename}",
         "unique_filename": unique_filename
     }
 

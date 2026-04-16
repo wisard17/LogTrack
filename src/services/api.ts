@@ -20,11 +20,11 @@ import {
 } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = '';
 
 export async function syncUserToPostgres(userData: UserProfile) {
   try {
-    const res = await fetch(`${API_BASE_URL}/mahasiswa`, {
+    const res = await fetch('/mahasiswa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -47,7 +47,7 @@ export async function uploadFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);
   
-  const uploadRes = await fetch(`${API_BASE_URL}/upload`, {
+  const uploadRes = await fetch('/upload', {
     method: 'POST',
     body: formData,
   });
@@ -56,7 +56,11 @@ export async function uploadFile(file: File) {
     throw new Error('Gagal mengunggah file ke server');
   }
 
-  return await uploadRes.json();
+  const result = await uploadRes.json();
+  if (!result.url) {
+    throw new Error('Response API upload tidak valid (missing url)');
+  }
+  return result;
 }
 
 export async function createLogEntry(logData: any) {
@@ -69,17 +73,17 @@ export async function createLogEntry(logData: any) {
 export async function syncLogToPostgres(logData: any, profile: UserProfile, group: ProjectGroup) {
   try {
     // Find student in Postgres by email
-    const studentRes = await fetch(`${API_BASE_URL}/mahasiswa`);
+    const studentRes = await fetch('/mahasiswa');
     const students = await studentRes.json();
     const pgStudent = students.find((s: any) => s.email === profile.email);
 
     // Find group in Postgres by name
-    const groupRes = await fetch(`${API_BASE_URL}/grup`);
+    const groupRes = await fetch('/grup');
     const groupsList = await groupRes.json();
     const pgGroup = groupsList.find((g: any) => g.nama === group.name);
 
     if (pgStudent && pgGroup) {
-      await fetch(`${API_BASE_URL}/logbook`, {
+      await fetch('/logbook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
