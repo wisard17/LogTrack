@@ -10,13 +10,20 @@ router = APIRouter(prefix="/logbook", tags=["logbook"])
 
 @router.get("", response_model=list[LogbookResponse])
 def list_logbook() -> list[dict]:
-    return fetch_all(
+    logs = fetch_all(
         """
         SELECT id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, created_at
         FROM logbook
         ORDER BY created_at DESC
         """
     )
+    for log in logs:
+        mahasiswa = fetch_one(
+            "SELECT id, nama, email, role, grup_id, created_at FROM mahasiswa WHERE id = :id",
+            {"id": log["mahasiswa_id"]},
+        )
+        log["mahasiswa"] = mahasiswa
+    return logs
 
 
 @router.get("/{logbook_id}", response_model=LogbookResponse)
@@ -93,15 +100,15 @@ def update_logbook(logbook_id: UUID, payload: LogbookUpdate) -> dict:
     return logbook
 
 
-@router.delete("/{logbook_id}")
-def delete_logbook(logbook_id: UUID) -> dict[str, str]:
+@router.delete("")
+def delete_logbook(id: UUID) -> dict[str, str]:
     deleted = fetch_one(
         """
         DELETE FROM logbook
         WHERE id = :id
         RETURNING id
         """,
-        {"id": str(logbook_id)},
+        {"id": str(id)},
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Logbook tidak ditemukan")

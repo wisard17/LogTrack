@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
 import uuid
 import shutil
+import secrets
 from pathlib import Path
 
 from api.db import test_connection
@@ -16,6 +18,34 @@ app = FastAPI(
     description="Backend API untuk aplikasi Logbook",
     version="0.1.0",
 )
+
+# CSRF Protection Implementation
+CSRF_SECRET = secrets.token_urlsafe(32)
+CSRF_HEADER_NAME = "X-CSRF-Token"
+CSRF_COOKIE_NAME = "csrf_token"
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Skip CSRF for file upload route if it's problematic or based on your needs
+        if request.url.path == "/upload":
+            return await call_next(request)
+
+        if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+            # Skip CSRF for file upload if necessary, but better to keep it
+            # For this simple implementation, we check the header against cookie
+            csrf_token_header = request.headers.get(CSRF_HEADER_NAME)
+            csrf_token_cookie = request.cookies.get(CSRF_COOKIE_NAME)
+            
+            if not csrf_token_header or not csrf_token_cookie or csrf_token_header != csrf_token_cookie:
+                return Response(
+                    content="CSRF token validation failed", 
+                    status_code=403
+                )
+        
+        response = await call_next(request)
+        return response
+
+app.add_middleware(CSRFMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,6 +68,17 @@ app.include_router(logbook_router)
 UPLOAD_DIR = Path("api/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+@app.get("/csrf-token")
+async def get_csrf_token(response: Response):
+    token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME, 
+        value=token, 
+        httponly=False, # Accessible by JS to be sent in header
+        samesite="lax"
+    )
+    return {CSRF_HEADER_NAME: token}
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):

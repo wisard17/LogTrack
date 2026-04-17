@@ -1,42 +1,37 @@
 import { useState, useEffect } from 'react';
 import { 
-  db, 
   ProjectGroup,
   UserProfile
 } from '../firebase';
-import { 
-  collection, 
-  onSnapshot, 
-  query, 
-  orderBy
-} from 'firebase/firestore';
+import { getUsersFromPostgres, getGroupsFromPostgres } from '../services/api';
 
 export function useGroups(isAdmin: boolean) {
   const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
 
   useEffect(() => {
-    const qGroups = query(collection(db, 'groups'), orderBy('createdAt', 'desc'));
-    const unsubGroups = onSnapshot(qGroups, (snapshot) => {
-      const groupsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ProjectGroup[];
-      setGroups(groupsData);
-    });
+    // Ambil data dari Postgres
+    const fetchData = async () => {
+      try {
+        const pgGroups = await getGroupsFromPostgres();
+        setGroups(pgGroups);
 
-    let unsubUsers = () => {};
-    if (isAdmin) {
-      const qUsers = query(collection(db, 'users'), orderBy('name', 'asc'));
-      unsubUsers = onSnapshot(qUsers, (snapshot) => {
-        const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
-        setAllUsers(usersData);
-      });
-    }
+        if (isAdmin) {
+          const pgUsers = await getUsersFromPostgres();
+          setAllUsers(pgUsers as UserProfile[]);
+        }
+      } catch (err) {
+        console.error("Gagal mengambil data dari Postgres:", err);
+      }
+    };
+
+    fetchData();
+    
+    // Refresh periodically for now since we don't have websocket/realtime for Postgres
+    const interval = setInterval(fetchData, 5000);
 
     return () => {
-      unsubGroups();
-      unsubUsers();
+      clearInterval(interval);
     };
   }, [isAdmin]);
 

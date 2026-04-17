@@ -27,9 +27,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { db, LogEntry, ProjectGroup, OperationType, handleFirestoreError } from '../../firebase';
-import { deleteDoc, doc } from 'firebase/firestore';
-import { uploadFile, createLogEntry, syncLogToPostgres } from '../../services/api';
+import { LogEntry, ProjectGroup } from '../../firebase';
+import { uploadFile, createLogEntry, deleteLogFromPostgres } from '../../services/api';
+import { formatDate } from '@/lib/utils-date';
 
 interface StudentDashboardProps {
   user: any;
@@ -84,23 +84,11 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
         evidenceUrl: downloadUrl,
         evidenceName: file.name,
         evidenceType: file.type,
-        studentId: user.uid,
-        studentName: profile.name,
-        groupId: userGroup.id,
       };
 
-      console.log("Creating Firestore entry with data:", logData);
-      await createLogEntry(logData);
-      console.log("Firestore entry created successfully");
-      
-      try {
-        console.log("Syncing to Postgres...");
-        await syncLogToPostgres(logData, profile, userGroup);
-        console.log("Postgres sync successful");
-      } catch (pgError) {
-        console.error("Postgres sync failed (non-blocking):", pgError);
-        // We don't toast error here because the main log is already in Firestore
-      }
+      console.log("Creating Postgres entry with data:", logData);
+      await createLogEntry(logData, profile, userGroup);
+      console.log("Postgres entry created successfully");
       
       toast.success('Logbook berhasil disimpan');
       setIsDialogOpen(false);
@@ -117,10 +105,10 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
   const handleDeleteLog = async (logId: string) => {
     if (!confirm('Hapus logbook ini?')) return;
     try {
-      await deleteDoc(doc(db, 'logs', logId));
+      await deleteLogFromPostgres(logId);
       toast.success('Logbook dihapus');
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `logs/${logId}`);
+      console.error("Gagal menghapus logbook:", error);
       toast.error('Gagal menghapus logbook');
     }
   };
@@ -240,35 +228,33 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Group Info Section */}
-      {userGroup ? (
-        <Card className="border-none bg-indigo-600 text-white shadow-lg shadow-indigo-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
-              <CardDescription className="text-indigo-100">Grup Saya</CardDescription>
-              <CardTitle className="text-2xl">{userGroup.name}</CardTitle>
-            </div>
-            <Users className="h-8 w-8 text-indigo-300" />
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription>Total Log</CardDescription>
+            <CardTitle className="text-2xl">{logs.filter(l => l.studentId === user.uid).length}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-indigo-500/30 text-white hover:bg-indigo-500/40">
-                {userGroup.members.length} Anggota
-              </Badge>
-              <span className="text-xs text-indigo-200">Terdaftar sejak {userGroup.createdAt?.toDate().toLocaleDateString('id-ID')}</span>
-            </div>
-          </CardContent>
         </Card>
-      ) : (
-        <Card className="border-2 border-dashed border-amber-200 bg-amber-50">
-          <CardContent className="flex flex-col items-center justify-center py-6 text-center">
-            <Users className="mb-2 h-8 w-8 text-amber-500" />
-            <p className="font-semibold text-amber-900">Belum memiliki kelompok</p>
-            <p className="text-sm text-amber-700">Hubungi admin untuk ditambahkan ke kelompok agar dapat membuat logbook.</p>
-          </CardContent>
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription>Minggu Terakhir</CardDescription>
+            <CardTitle className="text-2xl">
+              {logs.filter(l => l.studentId === user.uid).length > 0
+                  ? Math.max(...logs.filter(l => l.studentId === user.uid).map(l => l.weekNumber))
+                  : '-'}
+            </CardTitle>
+          </CardHeader>
         </Card>
-      )}
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription>Kelompok</CardDescription>
+            <CardTitle className="text-2xl text-primary">
+              {groups.find(g => g.members.includes(user.uid))?.name || 'Belum Ada'}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+      
 
       {/* Logs List */}
       <div className="space-y-4">
@@ -305,11 +291,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
                             Minggu {log.weekNumber}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {log.timestamp?.toDate().toLocaleDateString('id-ID', { 
-                              day: 'numeric', 
-                              month: 'long', 
-                              year: 'numeric' 
-                            })}
+                            {formatDate(log.timestamp)}
                           </span>
                         </div>
                         <h4 className="mb-2 font-semibold text-slate-900">

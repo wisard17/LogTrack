@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.schemas.mahasiswa import MahasiswaResponse
+
 
 class LogbookBase(BaseModel):
     week_number: int = Field(ge=1, le=52)
@@ -25,5 +27,6 @@ class LogbookUpdate(LogbookBase):
 class LogbookResponse(LogbookBase):
     id: UUID
     created_at: datetime
+    mahasiswa: MahasiswaResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)

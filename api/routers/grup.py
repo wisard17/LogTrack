@@ -9,8 +9,30 @@ router = APIRouter(prefix="/grup", tags=["grup"])
 
 
 @router.get("", response_model=list[GrupResponse])
-def list_grup() -> list[dict]:
-    return fetch_all("SELECT id, nama, created_at FROM grup ORDER BY created_at DESC")
+def list_grup(id: str | None = None, nama: str | None = None) -> list[dict]:
+    query = "SELECT id, nama, created_at FROM grup"
+    params = {}
+    if id:
+        if id.startswith("eq."):
+            id = id[3:]
+        query += " WHERE id = :id"
+        params["id"] = id
+    elif nama:
+        if nama.startswith("eq."):
+            nama = nama[3:]
+        query += " WHERE nama = :nama"
+        params["nama"] = nama
+    
+    query += " ORDER BY created_at DESC"
+    
+    groups = fetch_all(query, params)
+    for group in groups:
+        mahasiswa = fetch_all(
+            "SELECT id, nama, email, role, grup_id, created_at FROM mahasiswa WHERE grup_id = :grup_id",
+            {"grup_id": str(group["id"])},
+        )
+        group["mahasiswa"] = mahasiswa
+    return groups
 
 
 @router.get("/{grup_id}", response_model=GrupResponse)

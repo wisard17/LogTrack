@@ -22,18 +22,16 @@ import {
   Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { db, LogEntry, ProjectGroup, UserProfile, OperationType, handleFirestoreError } from '../../firebase';
+import { db, LogEntry, ProjectGroup, UserProfile, OperationType } from '../../firebase';
 import { 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  updateDoc, 
-  serverTimestamp, 
-  arrayUnion, 
-  arrayRemove 
-} from 'firebase/firestore';
-import { API_BASE_URL } from '../../services/api';
+  API_BASE_URL, 
+  deleteLogFromPostgres, 
+  createGroupInPostgres, 
+  deleteGroupFromPostgres, 
+  updateStudentGroupInPostgres,
+  updateUserRoleInPostgres
+} from '../../services/api';
+import { formatDate } from '@/lib/utils-date';
 
 interface AdminDashboardProps {
   logs: LogEntry[];
@@ -50,28 +48,11 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     e.preventDefault();
     if (!newGroupName.trim()) return;
     try {
-      const groupData = {
-        name: newGroupName,
-        members: [],
-        createdAt: serverTimestamp(),
-      };
-      await addDoc(collection(db, 'groups'), groupData);
-      
-      // Sync to Postgres
-      try {
-        await fetch(`${API_BASE_URL}/grup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: newGroupName })
-        });
-      } catch (err) {
-        console.error("Postgres group sync error:", err);
-      }
-
+      await createGroupInPostgres(newGroupName);
       setNewGroupName('');
       toast.success('Kelompok berhasil dibuat');
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'groups');
+      console.error("Gagal membuat kelompok:", error);
       toast.error('Gagal membuat kelompok');
     }
   };
@@ -79,38 +60,27 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
   const handleDeleteGroup = async (groupId: string) => {
     if (!confirm('Hapus kelompok ini?')) return;
     try {
-      await deleteDoc(doc(db, 'groups', groupId));
+      await deleteGroupFromPostgres(groupId);
       toast.success('Kelompok dihapus');
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `groups/${groupId}`);
+      console.error("Gagal menghapus kelompok:", error);
       toast.error('Gagal menghapus kelompok');
     }
   };
 
   const handleToggleMember = async (groupId: string, userId: string, isMember: boolean) => {
     try {
-      const groupRef = doc(db, 'groups', groupId);
       if (isMember) {
-        await updateDoc(groupRef, {
-          members: arrayRemove(userId)
-        });
+        // Remove from group
+        await updateStudentGroupInPostgres(userId, null);
         toast.success('Anggota dihapus dari kelompok');
       } else {
-        // Remove from other groups first to ensure one student = one group
-        for (const g of groups) {
-          if (g.members.includes(userId) && g.id !== groupId) {
-            await updateDoc(doc(db, 'groups', g.id!), {
-              members: arrayRemove(userId)
-            });
-          }
-        }
-        await updateDoc(groupRef, {
-          members: arrayUnion(userId)
-        });
+        // Add to group (Postgres handles one group per student via grup_id column usually)
+        await updateStudentGroupInPostgres(userId, groupId);
         toast.success('Anggota ditambahkan ke kelompok');
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `groups/${groupId}`);
+      console.error("Gagal memperbarui anggota kelompok:", error);
       toast.error('Gagal memperbarui anggota kelompok');
     }
   };
@@ -118,12 +88,10 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
   const handleToggleAdmin = async (targetUser: UserProfile) => {
     try {
       const newRole = targetUser.role === 'admin' ? 'student' : 'admin';
-      await updateDoc(doc(db, 'users', targetUser.uid), {
-        role: newRole
-      });
+      await updateUserRoleInPostgres(targetUser.uid, newRole);
       toast.success(`User berhasil dijadikan ${newRole}`);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${targetUser.uid}`);
+      console.error("Gagal mengubah role user:", error);
       toast.error('Gagal mengubah role user');
     }
   };
@@ -131,10 +99,10 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
   const handleDeleteLog = async (logId: string) => {
     if (!confirm('Hapus logbook ini?')) return;
     try {
-      await deleteDoc(doc(db, 'logs', logId));
+      await deleteLogFromPostgres(logId);
       toast.success('Logbook dihapus');
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `logs/${logId}`);
+      console.error("Gagal menghapus logbook:", error);
       toast.error('Gagal menghapus logbook');
     }
   };
@@ -351,11 +319,7 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
                             {studentGroup?.name || 'Tanpa Kelompok'}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {log.timestamp?.toDate().toLocaleDateString('id-ID', { 
-                              day: 'numeric', 
-                              month: 'long', 
-                              year: 'numeric' 
-                            })}
+                            {formatDate(log.timestamp)}
                           </span>
                         </div>
                         <h4 className="mb-1 font-semibold text-slate-900">{log.studentName}</h4>

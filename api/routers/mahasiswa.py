@@ -9,7 +9,21 @@ router = APIRouter(prefix="/mahasiswa", tags=["mahasiswa"])
 
 
 @router.get("", response_model=list[MahasiswaResponse])
-def list_mahasiswa() -> list[dict]:
+def list_mahasiswa(email: str | None = None, id: str | None = None) -> list[dict]:
+    if email:
+        if email.startswith("eq."):
+            email = email[3:]
+        return fetch_all(
+            "SELECT id, nama, email, role, grup_id, created_at FROM mahasiswa WHERE email = :email",
+            {"email": email},
+        )
+    if id:
+        if id.startswith("eq."):
+            id = id[3:]
+        return fetch_all(
+            "SELECT id, nama, email, role, grup_id, created_at FROM mahasiswa WHERE id = :id",
+            {"id": id},
+        )
     return fetch_all(
         """
         SELECT id, nama, email, role, grup_id, created_at
