@@ -91,6 +91,29 @@ def create_mahasiswa(payload: MahasiswaCreate) -> dict:
 
 @router.put("/{mahasiswa_id}", response_model=MahasiswaResponse)
 def update_mahasiswa(mahasiswa_id: str, payload: MahasiswaUpdate) -> dict:
+    # Get current data
+    current = fetch_one(
+        "SELECT id, nama, email, role, grup_id FROM mahasiswa WHERE id = :id",
+        {"id": mahasiswa_id}
+    )
+    if not current:
+        raise HTTPException(status_code=404, detail="Mahasiswa tidak ditemukan")
+
+    # Update only provided fields
+    update_data = payload.model_dump(exclude_unset=True)
+    full_data = {
+        "id": mahasiswa_id,
+        "nama": update_data.get("nama", current["nama"]),
+        "email": update_data.get("email", current["email"]),
+        "role": update_data.get("role", current["role"]),
+    }
+    
+    # Handle grup_id correctly in full_data
+    if "grup_id" in update_data:
+        full_data["grup_id"] = str(update_data["grup_id"]) if update_data["grup_id"] else None
+    else:
+        full_data["grup_id"] = str(current["grup_id"]) if current["grup_id"] else None
+
     mahasiswa = fetch_one(
         """
         UPDATE mahasiswa
@@ -101,15 +124,25 @@ def update_mahasiswa(mahasiswa_id: str, payload: MahasiswaUpdate) -> dict:
         WHERE id = :id
         RETURNING id, nama, email, role, grup_id, created_at
         """,
-        {
-            "id": mahasiswa_id,
-            **payload.model_dump(),
-            "grup_id": str(payload.grup_id) if payload.grup_id else None,
-        },
+        full_data,
     )
-    if not mahasiswa:
-        raise HTTPException(status_code=404, detail="Mahasiswa tidak ditemukan")
     return mahasiswa
+
+
+@router.patch("", response_model=MahasiswaResponse)
+def patch_mahasiswa_query(payload: MahasiswaUpdate, id: str | None = None) -> dict:
+    if not id:
+        raise HTTPException(status_code=400, detail="ID is required")
+    
+    if id.startswith("eq."):
+        id = id[3:]
+    
+    return update_mahasiswa(id, payload)
+
+
+@router.patch("/{mahasiswa_id}", response_model=MahasiswaResponse)
+def patch_mahasiswa(mahasiswa_id: str, payload: MahasiswaUpdate) -> dict:
+    return update_mahasiswa(mahasiswa_id, payload)
 
 
 @router.delete("/{mahasiswa_id}")

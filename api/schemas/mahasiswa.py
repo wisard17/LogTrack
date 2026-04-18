@@ -17,8 +17,11 @@ class MahasiswaCreate(MahasiswaBase):
     pass
 
 
-class MahasiswaUpdate(MahasiswaBase):
-    pass
+class MahasiswaUpdate(BaseModel):
+    nama: str | None = Field(None, min_length=1, max_length=150)
+    email: EmailStr | None = None
+    role: Literal["student", "admin"] | None = None
+    grup_id: UUID | None = None
 
 
 class MahasiswaResponse(MahasiswaBase):
