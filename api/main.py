@@ -12,6 +12,7 @@ from api.db import test_connection
 from api.routers.grup import router as grup_router
 from api.routers.logbook import router as logbook_router
 from api.routers.mahasiswa import router as mahasiswa_router
+from fastapi import Depends
 
 app = FastAPI(
     title="Logbook API",
@@ -19,28 +20,33 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CSRF Protection Implementation
+# Initialize CSRF Protection
 CSRF_SECRET = secrets.token_urlsafe(32)
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_COOKIE_NAME = "csrf_token"
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Skip CSRF for file upload route if it's problematic or based on your needs
-        if request.url.path == "/upload":
+        # Allow /csrf-token and / without CSRF
+        if request.url.path in ["/csrf-token", "/"]:
             return await call_next(request)
 
-        if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
-            # Skip CSRF for file upload if necessary, but better to keep it
-            # For this simple implementation, we check the header against cookie
-            csrf_token_header = request.headers.get(CSRF_HEADER_NAME)
-            csrf_token_cookie = request.cookies.get(CSRF_COOKIE_NAME)
-            
-            if not csrf_token_header or not csrf_token_cookie or csrf_token_header != csrf_token_cookie:
-                return Response(
-                    content="CSRF token validation failed", 
-                    status_code=403
-                )
+        csrf_token_header = request.headers.get(CSRF_HEADER_NAME)
+        csrf_token_cookie = request.cookies.get(CSRF_COOKIE_NAME)
+
+        # Jika cookie CSRF valid (dikirim otomatis oleh browser).
+        if request.url.path.startswith("/uploads/"):
+            if csrf_token_cookie:
+                return await call_next(request)
+            else:
+                return Response(content="Access denied: Missing CSRF cookie", status_code=403)
+
+        # Check CSRF for all other methods/paths (wajib header + cookie match)
+        if not csrf_token_header or not csrf_token_cookie or csrf_token_header != csrf_token_cookie:
+            return Response(
+                content="CSRF token validation failed", 
+                status_code=403
+            )
         
         response = await call_next(request)
         return response
@@ -54,6 +60,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://logbook.wisard17.my.id",
     ],
     allow_credentials=True,
     allow_methods=["*"],

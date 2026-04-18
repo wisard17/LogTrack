@@ -38,10 +38,8 @@ async function getCsrfToken() {
 }
 
 async function fetchWithCsrf(url: string, options: RequestInit = {}) {
-  const method = options.method?.toUpperCase() || 'GET';
-  const stateChangingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
-  
-  if (stateChangingMethods.includes(method)) {
+  // Add CSRF token to all requests except /csrf-token
+  if (url !== '/csrf-token') {
     const token = await getCsrfToken();
     if (token) {
       options.headers = {
@@ -49,17 +47,15 @@ async function fetchWithCsrf(url: string, options: RequestInit = {}) {
         'X-CSRF-Token': token
       };
     }
-    // allow credentials to send/receive cookies
-    options.credentials = 'include';
-  } else {
-    // For GET requests, we also want to include credentials to receive/maintain the cookie
-    options.credentials = 'include';
   }
+  
+  // allow credentials to send/receive cookies
+  options.credentials = 'include';
   
   const res = await fetch(url, options);
   
   // If unauthorized due to CSRF (403), try to refresh token once
-  if (res.status === 403 && stateChangingMethods.includes(method)) {
+  if (res.status === 403 && url !== '/csrf-token') {
      cachedCsrfToken = null;
      const newToken = await getCsrfToken();
      if (newToken) {
@@ -98,7 +94,7 @@ export async function uploadFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);
   
-  const uploadRes = await fetch('/upload', {
+  const uploadRes = await fetchWithCsrf('/upload', {
     method: 'POST',
     body: formData,
   });
@@ -168,6 +164,10 @@ export async function getLogsFromPostgres(studentEmail?: string, isAdmin?: boole
     studentName: log.mahasiswa?.nama,
     timestamp: { seconds: new Date(log.created_at).getTime() / 1000, nanoseconds: 0 } // Mock Firebase timestamp for compatibility
   }));
+
+  // Jika evidenceUrl adalah path lokal (misal /uploads/...), kita mungkin butuh mekanisme
+  // untuk mengambilnya dengan CSRF jika backend memproteksinya.
+  // Namun untuk saat ini kita biarkan karena browser <img src> tidak mendukung custom headers.
 
   if (isAdmin) return mappedLogs;
   
