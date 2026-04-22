@@ -274,6 +274,27 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
         </>
       ) : (
         <div className="space-y-6">
+          <Card className="border-none shadow-sm bg-slate-50/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-700">Ringkasan Log per Kelompok</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                {groups.map(group => {
+                  const logCount = logs.filter(l => l.groupId === group.id).length;
+                  return (
+                    <div key={group.id} className="bg-white px-3 py-1.5 rounded-full border border-slate-200 text-xs font-medium shadow-sm flex items-center gap-2">
+                      <span className="text-slate-600">{group.name}</span>
+                      <Badge variant="secondary" className="h-5 px-1.5 bg-primary/10 text-primary border-none">
+                        {logCount} log
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <label className="mb-2 block text-sm font-medium">Filter Kelompok</label>
