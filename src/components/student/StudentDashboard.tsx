@@ -231,16 +231,16 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Total Log</CardDescription>
-            <CardTitle className="text-2xl">{logs.filter(l => l.studentId === user.uid).length}</CardTitle>
+            <CardDescription>Total Log Kelompok</CardDescription>
+            <CardTitle className="text-2xl">{logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).length}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Minggu Terakhir</CardDescription>
+            <CardDescription>Minggu Terakhir Kelompok</CardDescription>
             <CardTitle className="text-2xl">
-              {logs.filter(l => l.studentId === user.uid).length > 0
-                  ? Math.max(...logs.filter(l => l.studentId === user.uid).map(l => l.weekNumber))
+              {logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).length > 0
+                  ? Math.max(...logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).map(l => l.weekNumber))
                   : '-'}
             </CardTitle>
           </CardHeader>
@@ -258,7 +258,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
 
       {/* Logs List */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Riwayat Kegiatan</h3>
+        <h3 className="text-lg font-semibold text-slate-900">Riwayat Kegiatan ({logs.length})</h3>
         
         <AnimatePresence mode="popLayout">
           {logs.length === 0 ? (

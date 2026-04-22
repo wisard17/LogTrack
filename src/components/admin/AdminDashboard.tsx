@@ -203,7 +203,7 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
                 <Settings className="h-5 w-5 text-primary" />
-                Manajemen Mahasiswa
+                Manajemen Mahasiswa ({allUsers.length})
               </h3>
               <ScrollArea className="h-[500px] rounded-xl border border-slate-200 bg-white p-4">
                 <div className="space-y-2">
