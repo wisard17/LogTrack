@@ -103,14 +103,28 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
   };
 
   const handleDeleteLog = async (logId: string) => {
-    if (!confirm('Hapus logbook ini?')) return;
-    try {
-      await deleteLogFromPostgres(logId);
-      toast.success('Logbook dihapus');
-    } catch (error) {
-      console.error("Gagal menghapus logbook:", error);
-      toast.error('Gagal menghapus logbook');
-    }
+    toast("Hapus logbook ini?", {
+      classNames: {
+        actionButton: 'bg-red-600 text-white hover:bg-red-700',
+        cancelButton: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+      },
+      action: {
+        label: "Hapus",
+        onClick: async () => {
+          try {
+            await deleteLogFromPostgres(logId);
+            toast.success('Logbook dihapus');
+          } catch (error) {
+            toast.error('Gagal menghapus');
+          }
+        },
+      },
+      cancel: {
+        label: "Batal",
+        onClick: () => console.log("Dibatalkan"),
+      },
+      duration: Infinity,
+    });
   };
 
   const userGroup = groups.find(g => g.members.includes(user.uid));
@@ -291,11 +305,17 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
                             Minggu {log.weekNumber}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {formatDate(log.timestamp)}
+                            {formatDate(log.timestamp, {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
                         </div>
                         <h4 className="mb-2 font-semibold text-slate-900">
-                          {log.studentId === user.uid ? 'Laporan Saya' : log.studentName}
+                          {log.studentId === user.uid ? 'Laporan Saya' : log.studentName} Kelompok {groups.find(g => g.id === log.groupId)?.name}
                         </h4>
                         <p className="text-sm leading-relaxed text-slate-600">
                           {log.description}

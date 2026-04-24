@@ -39,5 +39,13 @@ export function formatDate(timestamp: any, options: Intl.DateTimeFormatOptions =
 }): string {
   const date = toDate(timestamp);
   if (!date) return '-';
-  return date.toLocaleDateString('id-ID', options);
+  const hasTimeOption =
+    options.hour !== undefined ||
+    options.minute !== undefined ||
+    options.second !== undefined ||
+    options.timeStyle !== undefined;
+
+  return hasTimeOption
+    ? date.toLocaleString('id-ID', options)
+    : date.toLocaleDateString('id-ID', options);
 }
