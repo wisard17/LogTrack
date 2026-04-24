@@ -44,6 +44,10 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
   const [weekNumber, setWeekNumber] = useState<number>(1);
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [showMyGroupOnly, setShowMyGroupOnly] = useState(false);
+  const userGroup = groups.find(g => g.members.includes(user.uid));
+  const groupLogs = logs.filter(log => log.groupId === userGroup?.id);
+  const displayedLogs = showMyGroupOnly ? groupLogs : logs;
 
   const resetForm = () => {
     setWeekNumber(1);
@@ -54,8 +58,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
   const handleSubmitLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile) return;
-    
-    const userGroup = groups.find(g => g.members.includes(user.uid));
+
     if (!userGroup) {
       toast.error('Anda harus terdaftar dalam kelompok sebelum mengunggah logbook');
       return;
@@ -126,8 +129,6 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
       duration: Infinity,
     });
   };
-
-  const userGroup = groups.find(g => g.members.includes(user.uid));
 
   return (
     <div className="space-y-8">
@@ -246,15 +247,15 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Total Log Kelompok</CardDescription>
-            <CardTitle className="text-2xl">{logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).length}</CardTitle>
+            <CardTitle className="text-2xl">{groupLogs.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Minggu Terakhir Kelompok</CardDescription>
             <CardTitle className="text-2xl">
-              {logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).length > 0
-                  ? Math.max(...logs.filter(l => l.groupId === groups.find(g => g.members.includes(user.uid))?.id).map(l => l.weekNumber))
+              {groupLogs.length > 0
+                  ? Math.max(...groupLogs.map(l => l.weekNumber))
                   : '-'}
             </CardTitle>
           </CardHeader>
@@ -263,7 +264,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
           <CardHeader className="pb-2">
             <CardDescription>Kelompok</CardDescription>
             <CardTitle className="text-2xl text-primary">
-              {groups.find(g => g.members.includes(user.uid))?.name || 'Belum Ada'}
+              {userGroup?.name || 'Belum Ada'}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -272,10 +273,22 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
 
       {/* Logs List */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Riwayat Kegiatan ({logs.length})</h3>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">Riwayat Kegiatan ({displayedLogs.length})</h3>
+          <Button
+            type="button"
+            size="sm"
+            variant={showMyGroupOnly ? 'default' : 'outline'}
+            className="w-fit"
+            onClick={() => setShowMyGroupOnly((prev) => !prev)}
+          >
+            <Users className="mr-2 h-4 w-4" />
+            {showMyGroupOnly ? 'Tampilkan Semua Kelompok' : 'Hanya Kelompok Saya'}
+          </Button>
+        </div>
         
         <AnimatePresence mode="popLayout">
-          {logs.length === 0 ? (
+          {displayedLogs.length === 0 ? (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -285,11 +298,15 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
                 <Calendar className="h-8 w-8 text-slate-400" />
               </div>
               <h4 className="text-lg font-medium text-slate-900">Belum ada log</h4>
-              <p className="text-slate-500">Mulai catat progres mingguan Anda sekarang.</p>
+              <p className="text-slate-500">
+                {showMyGroupOnly
+                  ? 'Belum ada log untuk kelompok Anda.'
+                  : 'Mulai catat progres mingguan Anda sekarang.'}
+              </p>
             </motion.div>
           ) : (
             <div className="grid gap-4">
-              {logs.map((log) => (
+              {displayedLogs.map((log) => (
                 <motion.div
                   key={log.id}
                   layout
