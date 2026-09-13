@@ -14,6 +14,7 @@ class LogbookBase(BaseModel):
     evidence_type: str | None = Field(default=None, max_length=100)
     mahasiswa_id: str
     grup_id: UUID
+    matakuliah_id: UUID
 
 
 class LogbookCreate(LogbookBase):

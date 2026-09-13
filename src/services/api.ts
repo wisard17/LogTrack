@@ -1,43 +1,24 @@
-import { 
-  auth, 
-  loginWithGoogle, 
-  logout, 
-  db, 
-  UserProfile, 
-  LogEntry, 
-  ProjectGroup,
-  OperationType, 
-  handleFirestoreError,
-  getAuthErrorMessage
-} from '../firebase';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  collection, 
-  addDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { Course, UserProfile, ProjectGroup } from '../firebase';
 
 export const API_BASE_URL = '';
 
 let cachedCsrfToken: string | null = null;
+let pendingCsrfToken: Promise<string | null> | null = null;
 
 async function getCsrfToken() {
   if (cachedCsrfToken) return cachedCsrfToken;
-  try {
-    const res = await fetch('/csrf-token', { credentials: 'include' });
-    const data = await res.json();
-    cachedCsrfToken = data['X-CSRF-Token'];
-    return cachedCsrfToken;
-  } catch (error) {
-    console.error('Gagal mengambil CSRF token:', error);
-    return null;
+  if (!pendingCsrfToken) {
+    pendingCsrfToken = fetch('/csrf-token', { credentials: 'include' }).then(async res => {
+      if (!res.ok) throw new Error('Gagal mengambil CSRF token');
+      const data = await res.json();
+      cachedCsrfToken = data['X-CSRF-Token'];
+      return cachedCsrfToken;
+    }).finally(() => { pendingCsrfToken = null; });
   }
+  return pendingCsrfToken;
 }
 
-async function fetchWithCsrf(url: string, options: RequestInit = {}) {
+export async function fetchWithCsrf(url: string, options: RequestInit = {}) {
   // Add CSRF token to all requests except /csrf-token
   if (url !== '/csrf-token') {
     const token = await getCsrfToken();
@@ -111,20 +92,6 @@ export async function uploadFile(file: File) {
 }
 
 export async function createLogEntry(logData: any, profile: UserProfile, group: ProjectGroup) {
-  // Find student in Postgres by email
-  const studentRes = await fetchWithCsrf(`/mahasiswa?email=eq.${profile.email}`);
-  const students = await studentRes.json();
-  const pgStudent = students[0];
-
-  // Find group in Postgres by name
-  const groupRes = await fetchWithCsrf(`/grup?nama=eq.${encodeURIComponent(group.name)}`);
-  const groupsList = await groupRes.json();
-  const pgGroup = groupsList[0];
-
-  if (!pgStudent || !pgGroup) {
-    throw new Error('Data mahasiswa atau kelompok tidak ditemukan di database PostgreSQL');
-  }
-
   const res = await fetchWithCsrf('/logbook', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -134,8 +101,9 @@ export async function createLogEntry(logData: any, profile: UserProfile, group: 
       evidence_url: logData.evidenceUrl,
       evidence_name: logData.evidenceName,
       evidence_type: logData.evidenceType,
-      mahasiswa_id: pgStudent.id,
-      grup_id: pgGroup.id
+      mahasiswa_id: profile.uid,
+      grup_id: group.id,
+      matakuliah_id: group.courseId
     })
   });
 
@@ -146,8 +114,8 @@ export async function createLogEntry(logData: any, profile: UserProfile, group: 
   return await res.json();
 }
 
-export async function getLogsFromPostgres(studentEmail?: string, isAdmin?: boolean, groupName?: string) {
-  const res = await fetchWithCsrf('/logbook');
+export async function getLogsFromPostgres(courseId: string, studentId?: string) {
+  const res = await fetchWithCsrf(`/logbook?matakuliah_id=${encodeURIComponent(courseId)}${studentId ? `&mahasiswa_id=${encodeURIComponent(studentId)}` : ''}`);
   if (!res.ok) throw new Error('Gagal mengambil data logbook');
   const allLogs = await res.json();
 
@@ -161,19 +129,11 @@ export async function getLogsFromPostgres(studentEmail?: string, isAdmin?: boole
     evidenceType: log.evidence_type,
     studentId: log.mahasiswa_id,
     groupId: log.grup_id,
+    courseId: log.matakuliah_id,
     studentName: log.mahasiswa?.nama,
     timestamp: { seconds: new Date(log.created_at).getTime() / 1000, nanoseconds: 0 } // Mock Firebase timestamp for compatibility
   }));
 
-  // Jika evidenceUrl adalah path lokal (misal /uploads/...), kita mungkin butuh mekanisme
-  // untuk mengambilnya dengan CSRF jika backend memproteksinya.
-  // Namun untuk saat ini kita biarkan karena browser <img src> tidak mendukung custom headers.
-
-  if (isAdmin) return mappedLogs;
-  
-  // Filter by student email if needed, or by group
-  // Assuming the backend might support filtering, but here we do it client side for now
-  // based on the existing pattern.
   return mappedLogs; 
 }
 
@@ -185,6 +145,7 @@ export async function getGroupsFromPostgres() {
   return groups.map((g: any) => ({
     id: g.id.toString(),
     name: g.nama,
+    courseId: g.matakuliah_id,
     members: g.mahasiswa?.map((m: any) => m.id) || []
   }));
 }
@@ -213,27 +174,27 @@ export async function updateUserRoleInPostgres(uid: string, role: 'admin' | 'stu
   return true;
 }
 
-export async function createGroupInPostgres(name: string) {
+export async function createGroupInPostgres(name: string, courseId: string) {
   const res = await fetchWithCsrf('/grup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nama: name })
+    body: JSON.stringify({ nama: name, matakuliah_id: courseId })
   });
   if (!res.ok) throw new Error('Gagal membuat grup di PostgreSQL');
   return await res.json();
 }
 
 export async function deleteGroupFromPostgres(id: string) {
-  const res = await fetchWithCsrf(`/grup?id=${id}`, {
+  const res = await fetchWithCsrf(`/grup/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) throw new Error('Gagal menghapus grup dari PostgreSQL');
   return true;
 }
 
-export async function updateStudentGroupInPostgres(studentId: string, groupId: string | null) {
-  const res = await fetchWithCsrf(`/mahasiswa?id=${studentId}`, {
-    method: 'PATCH',
+export async function updateStudentGroupInPostgres(studentId: string, groupId: string | null, courseId: string) {
+  const res = await fetchWithCsrf(`/matakuliah/${courseId}/peserta/${encodeURIComponent(studentId)}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ grup_id: groupId })
   });
@@ -247,4 +208,19 @@ export async function deleteLogFromPostgres(logId: string) {
   });
   if (!res.ok) throw new Error('Gagal menghapus logbook dari PostgreSQL');
   return true;
+}
+
+export async function getCourses(studentId?: string): Promise<Course[]> {
+  const res = await fetchWithCsrf('/matakuliah' + (studentId ? '?mahasiswa_id=' + encodeURIComponent(studentId) : ''));
+  if (!res.ok) throw new Error('Gagal mengambil mata kuliah');
+  return (await res.json()).map((c: any) => ({ id: c.id, name: c.nama, members: c.members }));
+}
+
+export async function saveCourse(name: string, id?: string) {
+  const res = await fetchWithCsrf(id ? '/matakuliah/' + id : '/matakuliah', {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nama: name.trim() }),
+  });
+  if (!res.ok) throw new Error('Gagal menyimpan mata kuliah. Pastikan nama belum digunakan.');
+  return res.json();
 }

@@ -9,28 +9,28 @@ router = APIRouter(prefix="/logbook", tags=["logbook"])
 
 
 @router.get("", response_model=list[LogbookResponse])
-def list_logbook() -> list[dict]:
-    logs = fetch_all(
+def list_logbook(matakuliah_id: UUID, mahasiswa_id: str | None = None) -> list[dict]:
+    return fetch_all(
         """
-        SELECT id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, created_at
-        FROM logbook
-        ORDER BY created_at DESC
-        """
+        SELECT l.id, l.week_number, l.description, l.evidence_url, l.evidence_name,
+               l.evidence_type, l.mahasiswa_id, l.grup_id, l.matakuliah_id, l.created_at,
+               row_to_json(m) AS mahasiswa
+        FROM logbook l
+        LEFT JOIN mahasiswa m ON m.id = l.mahasiswa_id
+        WHERE l.matakuliah_id = :mk AND (:mahasiswa IS NULL OR l.mahasiswa_id = :mahasiswa
+          OR l.grup_id IN (SELECT grup_id FROM peserta_matakuliah
+                          WHERE mahasiswa_id = :mahasiswa AND matakuliah_id = :mk))
+        ORDER BY l.created_at DESC
+        """,
+        {"mk": str(matakuliah_id), "mahasiswa": mahasiswa_id},
     )
-    for log in logs:
-        mahasiswa = fetch_one(
-            "SELECT id, nama, email, role, grup_id, created_at FROM mahasiswa WHERE id = :id",
-            {"id": log["mahasiswa_id"]},
-        )
-        log["mahasiswa"] = mahasiswa
-    return logs
 
 
 @router.get("/{logbook_id}", response_model=LogbookResponse)
 def get_logbook(logbook_id: UUID) -> dict:
     logbook = fetch_one(
         """
-        SELECT id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, created_at
+        SELECT id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, matakuliah_id, created_at
         FROM logbook
         WHERE id = :id
         """,
@@ -43,6 +43,7 @@ def get_logbook(logbook_id: UUID) -> dict:
 
 @router.post("", response_model=LogbookResponse, status_code=201)
 def create_logbook(payload: LogbookCreate) -> dict:
+    validate_membership(payload)
     return execute_returning_one(
         """
         INSERT INTO logbook (
@@ -52,7 +53,8 @@ def create_logbook(payload: LogbookCreate) -> dict:
             evidence_name,
             evidence_type,
             mahasiswa_id,
-            grup_id
+            grup_id,
+            matakuliah_id
         )
         VALUES (
             :week_number,
@@ -61,20 +63,23 @@ def create_logbook(payload: LogbookCreate) -> dict:
             :evidence_name,
             :evidence_type,
             :mahasiswa_id,
-            :grup_id
+            :grup_id,
+            :matakuliah_id
         )
-        RETURNING id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, created_at
+        RETURNING id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, matakuliah_id, created_at
         """,
         {
             **payload.model_dump(),
             "mahasiswa_id": payload.mahasiswa_id,
             "grup_id": str(payload.grup_id),
+            "matakuliah_id": str(payload.matakuliah_id),
         },
     )
 
 
 @router.put("/{logbook_id}", response_model=LogbookResponse)
 def update_logbook(logbook_id: UUID, payload: LogbookUpdate) -> dict:
+    validate_membership(payload)
     logbook = fetch_one(
         """
         UPDATE logbook
@@ -84,15 +89,17 @@ def update_logbook(logbook_id: UUID, payload: LogbookUpdate) -> dict:
             evidence_name = :evidence_name,
             evidence_type = :evidence_type,
             mahasiswa_id = :mahasiswa_id,
-            grup_id = :grup_id
+            grup_id = :grup_id,
+            matakuliah_id = :matakuliah_id
         WHERE id = :id
-        RETURNING id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, created_at
+        RETURNING id, week_number, description, evidence_url, evidence_name, evidence_type, mahasiswa_id, grup_id, matakuliah_id, created_at
         """,
         {
             "id": str(logbook_id),
             **payload.model_dump(),
             "mahasiswa_id": payload.mahasiswa_id,
             "grup_id": str(payload.grup_id),
+            "matakuliah_id": str(payload.matakuliah_id),
         },
     )
     if not logbook:
@@ -113,3 +120,11 @@ def delete_logbook(id: UUID) -> dict[str, str]:
     if not deleted:
         raise HTTPException(status_code=404, detail="Logbook tidak ditemukan")
     return {"message": "Logbook berhasil dihapus"}
+
+
+def validate_membership(payload: LogbookCreate | LogbookUpdate):
+    if not fetch_one(
+        "SELECT mahasiswa_id FROM peserta_matakuliah WHERE mahasiswa_id = :student AND matakuliah_id = :mk AND grup_id = :grup",
+        {"student": payload.mahasiswa_id, "mk": str(payload.matakuliah_id), "grup": str(payload.grup_id)},
+    ):
+        raise HTTPException(400, "Mahasiswa tidak terdaftar dalam kelompok dan mata kuliah ini")

@@ -1,10 +1,13 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, LayoutDashboard, Settings, User as UserIcon } from 'lucide-react';
-import { logout } from '../../firebase';
+import { logout, Course } from '../../firebase';
 import { toast } from 'sonner';
 
 interface NavbarProps {
+  courses: Course[];
+  courseId: string;
+  onCourseChange: (id: string) => void;
   user: any;
   profile: any;
   isAdmin: boolean;
@@ -12,7 +15,7 @@ interface NavbarProps {
   setView: (view: 'student' | 'admin') => void;
 }
 
-export function Navbar({ user, profile, isAdmin, view, setView }: NavbarProps) {
+export function Navbar({ user, profile, isAdmin, view, setView, courses, courseId, onCourseChange }: NavbarProps) {
   const handleLogout = async () => {
     try {
       await logout();
@@ -24,7 +27,7 @@ export function Navbar({ user, profile, isAdmin, view, setView }: NavbarProps) {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 h-16">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 min-h-16 flex-wrap gap-3 py-2">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-primary p-1.5">
@@ -34,9 +37,9 @@ export function Navbar({ user, profile, isAdmin, view, setView }: NavbarProps) {
           </div>
           
           {isAdmin && (
-            <div className="hidden rounded-lg border border-slate-200 bg-slate-50 p-1 sm:flex">
+            <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1 sm:flex">
               <Button 
-                variant={view === 'student' ? 'white' : 'ghost'} 
+                variant={view === 'student' ? 'secondary' : 'ghost'}
                 size="sm" 
                 className={`h-8 gap-2 ${view === 'student' ? 'shadow-sm' : ''}`}
                 onClick={() => setView('student')}
@@ -44,7 +47,7 @@ export function Navbar({ user, profile, isAdmin, view, setView }: NavbarProps) {
                 Mahasiswa
               </Button>
               <Button 
-                variant={view === 'admin' ? 'white' : 'ghost'} 
+                variant={view === 'admin' ? 'secondary' : 'ghost'}
                 size="sm" 
                 className={`h-8 gap-2 ${view === 'admin' ? 'shadow-sm' : ''}`}
                 onClick={() => setView('admin')}
@@ -56,7 +59,13 @@ export function Navbar({ user, profile, isAdmin, view, setView }: NavbarProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-4">
+          {courses.length > 1 && !(isAdmin && view === 'admin') && (
+            <select aria-label="Pilih mata kuliah" value={courseId} onChange={e => onCourseChange(e.target.value)}
+              className="max-w-[180px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm sm:max-w-[240px]">
+              {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+            </select>
+          )}
           <div className="hidden flex-col items-end sm:flex">
             <span className="text-sm font-semibold text-slate-900">{profile?.name}</span>
             <span className="text-xs text-slate-500">{user?.email}</span>

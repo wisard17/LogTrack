@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,6 +14,8 @@ import {
   DialogTrigger 
 } from '@/components/ui/dialog';
 import { 
+  BookOpen,
+  GraduationCap,
   Plus, 
   FileText, 
   Trash2, 
@@ -22,34 +25,43 @@ import {
   Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { db, LogEntry, ProjectGroup, UserProfile, OperationType } from '../../firebase';
+import { Course, LogEntry, ProjectGroup, UserProfile } from '../../firebase';
 import { 
-  API_BASE_URL, 
   deleteLogFromPostgres, 
   createGroupInPostgres, 
   deleteGroupFromPostgres, 
   updateStudentGroupInPostgres,
   updateUserRoleInPostgres
 } from '../../services/api';
+import { CourseManagement } from './CourseManagement';
 import { formatDate } from '@/lib/utils-date';
 
 interface AdminDashboardProps {
+  courses: Course[];
+  onCourseChange: (id: string) => void;
+  courseId: string;
+  courseName: string;
+  onChanged: () => void;
   logs: LogEntry[];
+  logsLoading: boolean;
+  logsError: string;
   groups: ProjectGroup[];
+  allGroups: ProjectGroup[];
   allUsers: UserProfile[];
 }
 
-export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) {
-  const [adminTab, setAdminTab] = useState<'groups' | 'logs'>('groups');
+export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups, allUsers, courseId, courseName, onChanged, courses, onCourseChange }: AdminDashboardProps) {
+  const [adminTab, setAdminTab] = useState('courses');
   const [newGroupName, setNewGroupName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGroupName.trim()) return;
+    if (!newGroupName.trim() || !courseId) return;
     try {
-      await createGroupInPostgres(newGroupName);
+      await createGroupInPostgres(newGroupName.trim(), courseId);
       setNewGroupName('');
+      onChanged();
       toast.success('Kelompok berhasil dibuat');
     } catch (error) {
       console.error("Gagal membuat kelompok:", error);
@@ -61,6 +73,7 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     if (!confirm('Hapus kelompok ini?')) return;
     try {
       await deleteGroupFromPostgres(groupId);
+      onChanged();
       toast.success('Kelompok dihapus');
     } catch (error) {
       console.error("Gagal menghapus kelompok:", error);
@@ -72,11 +85,13 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     try {
       if (isMember) {
         // Remove from group
-        await updateStudentGroupInPostgres(userId, null);
+        await updateStudentGroupInPostgres(userId, null, courseId);
+        onChanged();
         toast.success('Anggota dihapus dari kelompok');
       } else {
-        // Add to group (Postgres handles one group per student via grup_id column usually)
-        await updateStudentGroupInPostgres(userId, groupId);
+        // Assign one group in this course without changing other course memberships.
+        await updateStudentGroupInPostgres(userId, groupId, courseId);
+        onChanged();
         toast.success('Anggota ditambahkan ke kelompok');
       }
     } catch (error) {
@@ -89,6 +104,7 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     try {
       const newRole = targetUser.role === 'admin' ? 'student' : 'admin';
       await updateUserRoleInPostgres(targetUser.uid, newRole);
+      onChanged();
       toast.success(`User berhasil dijadikan ${newRole}`);
     } catch (error) {
       console.error("Gagal mengubah role user:", error);
@@ -100,6 +116,7 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     if (!confirm('Hapus logbook ini?')) return;
     try {
       await deleteLogFromPostgres(logId);
+      onChanged();
       toast.success('Logbook dihapus');
     } catch (error) {
       console.error("Gagal menghapus logbook:", error);
@@ -107,99 +124,47 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
     }
   };
 
+  useEffect(() => {
+    setNewGroupName('');
+    setSelectedGroupId('all');
+  }, [courseId, courseName]);
+
+  const activeGroupId = groups.some(g => g.id === selectedGroupId) ? selectedGroupId : 'all';
+  const filteredLogs = logs.filter(log => log.courseId === courseId &&
+    (activeGroupId === 'all' || log.groupId === activeGroupId));
+
+  const courseFilter = (id: string, label = 'Mata Kuliah') => (
+    <div className="min-w-0 flex-1">
+      <label htmlFor={id} className="mb-2 block text-sm font-medium">{label}</label>
+      <select id={id} value={courseId} disabled={!courses.length}
+        onChange={e => { setSelectedGroupId('all'); onCourseChange(e.target.value); }}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        {!courses.length && <option value="">Belum ada mata kuliah</option>}
+        {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+      </select>
+    </div>
+  );
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Panel Admin</h2>
-          <p className="text-slate-500">Kelola kelompok dan pantau progres seluruh mahasiswa.</p>
-        </div>
-        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
-          <Button 
-            variant={adminTab === 'groups' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="h-8 gap-2"
-            onClick={() => setAdminTab('groups')}
-          >
-            <Users className="h-4 w-4" />
-            Kelompok
-          </Button>
-          <Button 
-            variant={adminTab === 'logs' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="h-8 gap-2"
-            onClick={() => setAdminTab('logs')}
-          >
-            <FileText className="h-4 w-4" />
-            Monitoring Log
-          </Button>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900">Panel Admin</h2>
+        <p className="text-slate-500">Kelola mata kuliah, mahasiswa, kelompok, dan pantau laporan kegiatan.</p>
       </div>
-
-      {adminTab === 'groups' ? (
-        <>
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle>Buat Kelompok Baru</CardTitle>
-              <CardDescription>Tambahkan nama kelompok untuk memulai pengelompokan mahasiswa.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateGroup} className="flex gap-4">
-                <Input 
-                  placeholder="Nama Kelompok (Contoh: Kelompok 1 - AI)" 
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  className="max-w-md"
-                />
-                <Button type="submit">Buat Kelompok</Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Users className="h-5 w-5 text-primary" />
-                Daftar Kelompok ({groups.length})
-              </h3>
-              <ScrollArea className="h-[500px] rounded-xl border border-slate-200 bg-white p-4">
-                <div className="space-y-4">
-                  {groups.map((group) => (
-                    <Card key={group.id} className="border-slate-100 shadow-none">
-                      <CardHeader className="p-4 pb-2">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base">{group.name}</CardTitle>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => group.id && handleDeleteGroup(group.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <CardDescription className="text-xs">
-                          {group.members.length} Anggota
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <div className="flex flex-wrap gap-1">
-                          {group.members.map(memberId => {
-                            const member = allUsers.find(u => u.uid === memberId);
-                            return (
-                              <Badge key={memberId} variant="outline" className="text-[10px] font-normal">
-                                {member?.name || 'Loading...'}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
+      <Tabs value={adminTab} onValueChange={value => setAdminTab(String(value))} className="gap-6">
+        <div className="overflow-x-auto">
+          <TabsList aria-label="Menu admin" className="min-w-max">
+            <TabsTrigger value="courses"><BookOpen />Matakuliah</TabsTrigger>
+            <TabsTrigger value="students"><GraduationCap />Mahasiswa</TabsTrigger>
+            <TabsTrigger value="groups"><Users />Kelompok/Grup</TabsTrigger>
+            <TabsTrigger value="logs"><FileText />Monitoring Log</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="courses" className="space-y-6">
+          <CourseManagement courses={courses} groups={allGroups} users={allUsers} onChanged={onChanged} />
+        </TabsContent>
+        <TabsContent value="students" className="space-y-6">
+          {courseFilter('student-course')}
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
                 <Settings className="h-5 w-5 text-primary" />
@@ -245,10 +210,14 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader>
-                                <DialogTitle>Pilih Kelompok</DialogTitle>
+                                <DialogTitle>Pilih Kelompok — {courseName}</DialogTitle>
                                 <DialogDescription>Pindahkan {student.name} ke kelompok:</DialogDescription>
                               </DialogHeader>
                               <div className="grid gap-2 py-4">
+                                {courseId && <Button variant="outline" onClick={async () => {
+                                  try { await updateStudentGroupInPostgres(student.uid, null, courseId); onChanged(); toast.success('Terdaftar pada MK tanpa kelompok'); }
+                                  catch { toast.error('Gagal mendaftarkan mahasiswa'); }
+                                }}>Daftarkan ke MK tanpa kelompok</Button>}
                                 {groups.map(g => (
                                   <Button 
                                     key={g.id} 
@@ -270,10 +239,100 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
                 </div>
               </ScrollArea>
             </div>
-          </div>
-        </>
-      ) : (
+
+        </TabsContent>
+        <TabsContent value="groups" className="space-y-6">
+          {courseFilter('group-course')}
+          <Card className="border-none shadow-sm">
+            <CardHeader>
+              <CardTitle>Buat Kelompok Baru</CardTitle>
+              <CardDescription>Tambahkan nama kelompok untuk memulai pengelompokan mahasiswa.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateGroup} className="flex gap-4">
+                <Input 
+                  placeholder="Nama Kelompok (Contoh: Kelompok 1 - AI)" 
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="max-w-md"
+                />
+                <Button disabled={!courseId} type="submit">Buat Kelompok</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+
+            <div className="space-y-4">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <Users className="h-5 w-5 text-primary" />
+                Daftar Kelompok ({groups.length})
+              </h3>
+              <ScrollArea className="h-[500px] rounded-xl border border-slate-200 bg-white p-4">
+
+            <div className="space-y-4">
+                  {groups.map((group) => (
+                    <Card key={group.id} className="border-slate-100 shadow-none">
+                      <CardHeader className="p-4 pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">{group.name}</CardTitle>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => group.id && handleDeleteGroup(group.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <CardDescription className="text-xs">
+                          {group.members.length} Anggota
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0">
+                        <div className="flex flex-wrap gap-1">
+                          {group.members.map(memberId => {
+                            const member = allUsers.find(u => u.uid === memberId);
+                            return (
+                              <Badge key={memberId} variant="outline" className="text-[10px] font-normal">
+                                {member?.name || 'Loading...'}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+        </TabsContent>
+        <TabsContent value="logs">
         <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {courseFilter('monitor-course', 'Filter MK')}
+            <div className="flex-1">
+              <label htmlFor="monitor-group" className="mb-2 block text-sm font-medium">Filter Kelompok/Grup</label>
+              <select id="monitor-group" disabled={!courseId || !groups.length}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                value={activeGroupId}
+                onChange={(e) => setSelectedGroupId(e.target.value)}
+              >
+                <option value="all">Semua Kelompok</option>
+                {groups.map(g => (
+                  <option key={g.id} value={g.id!}>{g.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="mb-2 block text-sm font-medium">Total Log Ditemukan</label>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold">
+                {logsLoading ? 'Memuat...' : `${filteredLogs.length} Log`}
+              </div>
+            </div>
+          </div>
+
+
           <Card className="border-none shadow-sm bg-slate-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-slate-700">Ringkasan Log per Kelompok</CardTitle>
@@ -295,39 +354,11 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
             </CardContent>
           </Card>
 
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="mb-2 block text-sm font-medium">Filter Kelompok</label>
-              <select 
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                value={selectedGroupId}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-              >
-                <option value="all">Semua Kelompok</option>
-                {groups.map(g => (
-                  <option key={g.id} value={g.id!}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="mb-2 block text-sm font-medium">Total Log Ditemukan</label>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold">
-                {logs.filter(log => {
-                  if (selectedGroupId === 'all') return true;
-                  return log.groupId === selectedGroupId;
-                }).length} Log
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-4">
-            {logs
-              .filter(log => {
-                if (selectedGroupId === 'all') return true;
-                return log.groupId === selectedGroupId;
-              })
-              .map((log) => {
-                const studentGroup = groups.find(g => g.members.includes(log.studentId));
+            {logsLoading && <p role="status" className="p-8 text-center text-slate-500">Memuat logbook...</p>}
+            {!logsLoading && !logsError && filteredLogs.length === 0 && <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">Belum ada log sesuai filter yang dipilih.</p>}
+            {filteredLogs.map((log) => {
+                const studentGroup = groups.find(g => g.id === log.groupId);
                 return (
                   <Card key={log.id} className="overflow-hidden border-none shadow-sm">
                     <div className="flex flex-col sm:flex-row">
@@ -373,7 +404,9 @@ export function AdminDashboard({ logs, groups, allUsers }: AdminDashboardProps) 
               })}
           </div>
         </div>
-      )}
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -8,6 +8,7 @@ from api.schemas.mahasiswa import MahasiswaResponse
 
 class GrupBase(BaseModel):
     nama: str = Field(min_length=1, max_length=150)
+    matakuliah_id: UUID
 
 
 class GrupCreate(GrupBase):

@@ -32,13 +32,15 @@ import { uploadFile, createLogEntry, deleteLogFromPostgres } from '../../service
 import { formatDate } from '@/lib/utils-date';
 
 interface StudentDashboardProps {
+  courseName?: string;
+  onChanged: () => void;
   user: any;
   profile: any;
   logs: LogEntry[];
   groups: ProjectGroup[];
 }
 
-export function StudentDashboard({ user, profile, logs, groups }: StudentDashboardProps) {
+export function StudentDashboard({ user, profile, logs, groups, courseName, onChanged }: StudentDashboardProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weekNumber, setWeekNumber] = useState<number>(1);
@@ -93,6 +95,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
       await createLogEntry(logData, profile, userGroup);
       console.log("Postgres entry created successfully");
       
+      onChanged();
       toast.success('Logbook berhasil disimpan');
       setIsDialogOpen(false);
       resetForm();
@@ -116,6 +119,7 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
         onClick: async () => {
           try {
             await deleteLogFromPostgres(logId);
+            onChanged();
             toast.success('Logbook dihapus');
           } catch (error) {
             toast.error('Gagal menghapus');
@@ -136,12 +140,12 @@ export function StudentDashboard({ user, profile, logs, groups }: StudentDashboa
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Halo, {profile?.name}</h2>
-          <p className="text-slate-500">Pantau perkembangan mingguan Anda di sini.</p>
+          <p className="text-slate-500">{courseName ? `Pantau perkembangan mingguan — ${courseName}` : 'Anda belum terdaftar pada mata kuliah. Hubungi admin.'}</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="lg" className="h-12 gap-2 rounded-xl px-6 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+            <Button disabled={!userGroup} size="lg" className="h-12 gap-2 rounded-xl px-6 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
               <Plus className="h-5 w-5" />
               Buat Logbook Baru
             </Button>

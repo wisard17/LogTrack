@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -15,8 +15,12 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 
 export default function App() {
   const { user, profile, loading, isAuthReady, isAdmin } = useAuth();
-  const { groups, allUsers } = useGroups(isAdmin);
-  const { logs } = useLogs(user, isAdmin, isAuthReady, groups);
+  const { groups: allGroups, allUsers, courses, error, refresh, revision } = useGroups(user?.uid, isAdmin, isAuthReady);
+  const [selection, setSelection] = useState({ userId: '', courseId: '' });
+  const courseId = selection.userId === user?.uid && courses.some(c => c.id === selection.courseId)
+    ? selection.courseId : courses[0]?.id || '';
+  const groups = useMemo(() => allGroups.filter(g => g.courseId === courseId), [allGroups, courseId]);
+  const { logs, error: logsError, loading: logsLoading } = useLogs(user, isAdmin, isAuthReady, revision, courseId);
   
   const [view, setView] = useState<'student' | 'admin'>('student');
 
@@ -43,6 +47,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased">
       <Navbar 
+        courses={courses}
+        courseId={courseId}
+        onCourseChange={(id) => setSelection({ userId: user.uid, courseId: id })}
         user={user} 
         profile={profile} 
         isAdmin={isAdmin} 
@@ -51,20 +58,33 @@ export default function App() {
       />
 
       <main className="mx-auto max-w-7xl px-4 py-8">
+        {(error || logsError) && <p role="alert" className="mb-4 text-red-600">{error || logsError}</p>}
+        <div key={user.uid}>
         {isAdmin && view === 'admin' ? (
-          <AdminDashboard 
+          <AdminDashboard
+            logsLoading={logsLoading}
+            logsError={logsError}
+            allGroups={allGroups}
+            courses={courses}
+            onCourseChange={(id) => setSelection({ userId: user.uid, courseId: id })}
+            courseId={courseId}
+            courseName={courses.find(c => c.id === courseId)?.name || ''}
+            onChanged={refresh}
             logs={logs} 
             groups={groups} 
             allUsers={allUsers} 
           />
         ) : (
-          <StudentDashboard 
+          <div key={courseId}><StudentDashboard
+            courseName={courses.find(c => c.id === courseId)?.name}
+            onChanged={refresh}
             user={user} 
             profile={profile} 
             logs={logs} 
             groups={groups} 
-          />
+          /></div>
         )}
+        </div>
       </main>
       
       <Toaster position="top-center" />

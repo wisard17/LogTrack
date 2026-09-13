@@ -4,3 +4,5 @@ python-dotenv==1.1.1
 sqlalchemy==2.0.41
 psycopg2-binary==2.9.10
 email-validator==2.2.0
+
+python-multipart==0.0.32

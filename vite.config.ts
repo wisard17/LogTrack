@@ -28,6 +28,10 @@ export default defineConfig(({mode}) => {
           target: 'http://localhost:8000',
           changeOrigin: true,
         },
+        '/matakuliah': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
         '/mahasiswa': {
           target: 'http://localhost:8000',
           changeOrigin: true,

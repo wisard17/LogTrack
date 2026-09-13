@@ -79,7 +79,14 @@ export interface UserProfile {
   createdAt: Timestamp;
 }
 
+export interface Course {
+  id: string;
+  name: string;
+  members: string[];
+}
+
 export interface LogEntry {
+  courseId: string;
   id?: string;
   weekNumber: number;
   description: string;
@@ -93,6 +100,7 @@ export interface LogEntry {
 }
 
 export interface ProjectGroup {
+  courseId: string;
   id?: string;
   name: string;
   members: string[]; // Array of student UIDs

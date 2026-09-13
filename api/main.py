@@ -12,6 +12,7 @@ from api.db import test_connection
 from api.routers.grup import router as grup_router
 from api.routers.logbook import router as logbook_router
 from api.routers.mahasiswa import router as mahasiswa_router
+from api.routers.matakuliah import router as matakuliah_router
 from fastapi import Depends
 
 app = FastAPI(
@@ -70,6 +71,7 @@ app.add_middleware(
 app.include_router(grup_router)
 app.include_router(mahasiswa_router)
 app.include_router(logbook_router)
+app.include_router(matakuliah_router)
 
 # Setup static files directory
 UPLOAD_DIR = Path("api/uploads")

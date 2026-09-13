@@ -1,39 +1,33 @@
-import { useState, useEffect } from 'react';
-import { 
-  ProjectGroup,
-  UserProfile
-} from '../firebase';
-import { getUsersFromPostgres, getGroupsFromPostgres } from '../services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { Course, ProjectGroup, UserProfile } from '../firebase';
+import { getUsersFromPostgres, getGroupsFromPostgres, getCourses } from '../services/api';
 
-export function useGroups(isAdmin: boolean) {
-  const [groups, setGroups] = useState<ProjectGroup[]>([]);
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-
+export function useGroups(userId: string | undefined, isAdmin: boolean, ready: boolean) {
+  const [data, setData] = useState<{ owner?: string; groups: ProjectGroup[]; allUsers: UserProfile[]; courses: Course[] }>({ groups: [], allUsers: [], courses: [] });
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const refresh = useCallback(() => setRevision(n => n + 1), []);
   useEffect(() => {
-    // Ambil data dari Postgres
+    if (!userId || !ready) return;
+    let active = true;
+    let busy = false;
     const fetchData = async () => {
+      if (busy) return;
+      busy = true;
       try {
-        const pgGroups = await getGroupsFromPostgres();
-        setGroups(pgGroups);
-
-        if (isAdmin) {
-          const pgUsers = await getUsersFromPostgres();
-          setAllUsers(pgUsers as UserProfile[]);
-        }
-      } catch (err) {
-        console.error("Gagal mengambil data dari Postgres:", err);
-      }
+        const [groups, courses, allUsers] = await Promise.all([
+          getGroupsFromPostgres(), getCourses(isAdmin ? undefined : userId),
+          isAdmin ? getUsersFromPostgres() : Promise.resolve([]),
+        ]);
+        if (active) { setData({ owner: userId, groups, courses, allUsers }); setError(''); }
+      } catch {
+        if (active) setError('Gagal memuat mata kuliah. Periksa koneksi Anda atau coba lagi nanti.');
+      } finally { busy = false; }
     };
-
     fetchData();
-    
-    // Refresh periodically for now since we don't have websocket/realtime for Postgres
     const interval = setInterval(fetchData, 5000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isAdmin]);
-
-  return { groups, allUsers };
+    return () => { active = false; clearInterval(interval); };
+  }, [userId, isAdmin, ready, revision]);
+  const current = data.owner === userId && ready;
+  return { groups: current ? data.groups : [], allUsers: current ? data.allUsers : [], courses: current ? data.courses : [], error, refresh, revision };
 }
