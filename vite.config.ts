@@ -4,51 +4,52 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-  proxy: {
-        '/uploads': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
+    const env = loadEnv(mode, '.', '');
+    return {
+        plugins: [react(), tailwindcss()],
+        define: {
+            'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         },
-        '/upload': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
+        resolve: {
+            alias: {
+                '@': path.resolve(__dirname, '.'),
+            },
         },
-        '/matakuliah': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
+        server: {
+            // HMR is disabled in AI Studio via DISABLE_HMR env var.
+            // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+            hmr: process.env.DISABLE_HMR !== 'true',
+            allowedHosts: ['logbook.wisard17.my.id'],
+            proxy: {
+                '/uploads': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/upload': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/matakuliah': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/mahasiswa': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/grup': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/logbook': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+                '/csrf-token': {
+                    target: 'http://localhost:8000',
+                    changeOrigin: true,
+                },
+            },
         },
-        '/mahasiswa': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        '/grup': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        '/logbook': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-        '/csrf-token': {
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-      },
-    },
-  };
+    };
 });
