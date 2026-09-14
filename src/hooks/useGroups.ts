@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Course, ProjectGroup, UserProfile } from '../firebase';
+import type { Course, ProjectGroup, UserProfile } from '../types';
 import { getUsersFromPostgres, getGroupsFromPostgres, getCourses } from '../services/api';
 
 export function useGroups(userId: string | undefined, isAdmin: boolean, ready: boolean) {

@@ -1,81 +1,52 @@
 import { useState, useEffect } from 'react';
-import { 
-  auth, 
-  logout, 
-  db, 
-  UserProfile, 
-  getAuthErrorMessage
-} from '../firebase';
-import { 
-  onAuthStateChanged, 
-  User as FirebaseUser 
-} from 'firebase/auth';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  Timestamp 
-} from 'firebase/firestore';
+import { auth, logout } from '../firebase';
+import type { UserProfile } from '../types';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { toast } from 'sonner';
 import { syncUserToPostgres } from '../services/api';
-
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 
 export function useAuth() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      const isUnsrat = firebaseUser?.email?.endsWith('@unsrat.ac.id') || firebaseUser?.email?.endsWith('.unsrat.ac.id');
-      
-      if (firebaseUser && !isUnsrat) {
-        await logout();
-        toast.error('Akses ditolak. Gunakan email institusi Unsrat');
+    let generation = 0;
+    const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
+      const request = ++generation;
+      setLoading(true);
+      setIsAuthReady(false);
+      setProfile(null);
+      setError('');
+      setUser(firebaseUser);
+      if (!firebaseUser) { setLoading(false); return; }
+      const email = firebaseUser.email || '';
+      if (!email.endsWith('@unsrat.ac.id') && !email.endsWith('.unsrat.ac.id')) {
         setUser(null);
-        setProfile(null);
-        setLoading(false);
+        try { await logout(); } finally {
+          toast.error('Akses ditolak. Gunakan email institusi Unsrat');
+          if (request === generation) setLoading(false);
+        }
         return;
       }
-
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as UserProfile;
-            setProfile(userData);
-            setIsAdmin(firebaseUser.email === ADMIN_EMAIL || userData.role === 'admin');
-            await syncUserToPostgres(userData);
-          } else {
-            const newProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Mahasiswa',
-              email: firebaseUser.email || '',
-              role: 'student',
-              createdAt: Timestamp.now(),
-            };
-            await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-            setProfile(newProfile);
-            setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
-            await syncUserToPostgres(newProfile);
-          }
-        } catch (error) {
-          console.error("Error fetching profile:", error);
-        }
-      } else {
-        setProfile(null);
-        setIsAdmin(false);
+      try {
+        const savedProfile = await syncUserToPostgres({ uid: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Mahasiswa', email });
+        if (request !== generation) return;
+        setProfile(savedProfile);
+        setIsAuthReady(true);
+      } catch (error) {
+        if (request === generation) setError(error instanceof Error ? error.message : 'Gagal memuat profil');
+      } finally {
+        if (request === generation) setLoading(false);
       }
-      setIsAuthReady(true);
-      setLoading(false);
     });
+    return () => { generation++; unsubscribe(); };
+  }, [attempt]);
 
-    return () => unsubscribe();
-  }, []);
-
-  return { user, profile, loading, isAuthReady, isAdmin };
+  return { user, profile, loading, isAuthReady, isAdmin: profile?.role === 'admin', error,
+    retry: () => setAttempt(value => value + 1) };
 }

@@ -1,11 +1,37 @@
 from uuid import UUID
+import os
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr, Field
 
 from api.db_utils import execute_returning_one, fetch_all, fetch_one
 from api.schemas.mahasiswa import MahasiswaCreate, MahasiswaResponse, MahasiswaUpdate
 
 router = APIRouter(prefix="/mahasiswa", tags=["mahasiswa"])
+
+
+class LoginProfile(BaseModel):
+    id: str = Field(min_length=1)
+    nama: str = Field(min_length=1, max_length=150)
+    email: EmailStr
+
+
+@router.post("/login", response_model=MahasiswaResponse)
+def login_profile(payload: LoginProfile) -> dict:
+    email = str(payload.email).lower()
+    if not (email.endswith("@unsrat.ac.id") or email.endswith(".unsrat.ac.id")):
+        raise HTTPException(403, "Gunakan email institusi Unsrat")
+    # Preserve managed roles and memberships; retain the configured administrator.
+    admin_email = os.getenv("ADMIN_EMAIL", os.getenv("VITE_ADMIN_EMAIL", "")).lower()
+    return execute_returning_one(
+        """INSERT INTO mahasiswa (id, nama, email, role)
+           VALUES (:id, :nama, :email, :role)
+           ON CONFLICT (id) DO UPDATE SET nama = EXCLUDED.nama, email = EXCLUDED.email,
+             role = CASE WHEN :role = 'admin' THEN 'admin' ELSE mahasiswa.role END
+           RETURNING id, nama, email, role, grup_id, created_at""",
+        {"id": payload.id, "nama": payload.nama, "email": email,
+         "role": "admin" if admin_email and email == admin_email else "student"},
+    )
 
 
 @router.get("", response_model=list[MahasiswaResponse])

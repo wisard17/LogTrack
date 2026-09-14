@@ -86,3 +86,22 @@ python -m unittest api.tests.test_matakuliah -v
 Tes integrasi membutuhkan database pengujian PostgreSQL dengan izin membuat skema.
 Tes membuat skema bernama acak, menguji migrasi serta API dua MK, lalu menghapus
 skema pengujiannya. Jangan arahkan variabel pengujian ke database produksi.
+
+## Penyimpanan data dan login
+
+Firebase hanya digunakan untuk Google Authentication (login, sesi, dan logout).
+Aplikasi tidak menginisialisasi atau mengakses Firestore maupun Firebase Storage.
+Profil, role, MK, kelompok, keanggotaan, dan logbook menggunakan PostgreSQL.
+Tanggal dari API memakai ISO string. Lampiran tetap berada di `api/uploads`;
+PostgreSQL menyimpan URL dan metadata lampirannya.
+
+Login memanggil `POST /mahasiswa/login` untuk membuat atau memperbarui profil.
+Role, keanggotaan, dan laporan yang sudah tersimpan dipertahankan saat login ulang.
+Atur `ADMIN_EMAIL` di environment backend untuk administrator utama;
+`VITE_ADMIN_EMAIL` lama tetap didukung sebagai fallback backend. Role pengguna lain
+dikelola melalui PostgreSQL. Bila profil gagal dimuat, aplikasi menyediakan Coba Lagi.
+Restart backend dan gunakan build frontend terbaru setelah pembaruan ini.
+
+Data yang sudah tersinkron ke PostgreSQL tetap digunakan. Data historis yang hanya
+ada di Firestore tidak otomatis disalin; pembaruan ini tidak membaca atau menghapus
+data cloud lama. File aturan Firestore lama bukan bagian dari akses runtime aplikasi.

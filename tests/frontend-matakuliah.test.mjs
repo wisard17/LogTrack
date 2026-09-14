@@ -28,7 +28,7 @@ const compiled = new Module(path.resolve('tests/frontend-matakuliah.cjs'));
 compiled.filename = path.resolve('tests/frontend-matakuliah.cjs');
 compiled.paths = Module._nodeModulePaths(process.cwd());
 compiled._compile(bundle.outputFiles[0].text, compiled.filename);
-const { navbar, dashboard, getCourses, getLogsFromPostgres, createLogEntry } = compiled.exports;
+const { navbar, dashboard, getCourses, getLogsFromPostgres, createLogEntry, syncUserToPostgres } = compiled.exports;
 const noop = () => {};
 const course1 = { id: 'mk1', name: 'MK Satu', members: ['student'] };
 const course2 = { id: 'mk2', name: 'MK Dua', members: ['student'] };
@@ -79,5 +79,25 @@ test('API requests carry course and student IDs and share one initial CSRF reque
     assert.equal(payload.matakuliah_id, 'mk2');
     assert.equal(payload.grup_id, 'group2');
     assert.equal(payload.mahasiswa_id, 'student');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test('login reads the PostgreSQL role and does not submit a client role', async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: true, status: 200, json: async () => ({ id: 'student', nama: 'Nama',
+      email: 'student@unsrat.ac.id', role: 'admin', created_at: '2026-09-14T00:00:00Z' }) };
+  };
+  try {
+    const profile = await syncUserToPostgres({ uid: 'student', name: 'Nama', email: 'student@unsrat.ac.id' });
+    assert.equal(request.url, '/mahasiswa/login');
+    assert.equal(JSON.parse(request.options.body).role, undefined);
+    assert.equal(profile.role, 'admin');
+    assert.equal(profile.createdAt, '2026-09-14T00:00:00Z');
+    globalThis.fetch = async () => ({ ok: false, status: 500 });
+    await assert.rejects(syncUserToPostgres({ uid: 'student', name: 'Nama', email: 'student@unsrat.ac.id' }), /Gagal memuat profil/);
   } finally { globalThis.fetch = originalFetch; }
 });

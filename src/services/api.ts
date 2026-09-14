@@ -1,4 +1,4 @@
-import { Course, UserProfile, ProjectGroup } from '../firebase';
+import type { Course, UserProfile, ProjectGroup } from '../types';
 
 export const API_BASE_URL = '';
 
@@ -50,25 +50,14 @@ export async function fetchWithCsrf(url: string, options: RequestInit = {}) {
   return res;
 }
 
-export async function syncUserToPostgres(userData: UserProfile) {
-  try {
-    const res = await fetchWithCsrf('/mahasiswa', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nama: userData.name,
-        email: userData.email,
-        id: userData.uid,
-        role: userData.role
-      })
-    });
-    if (!res.ok) {
-      const errorData = await res.json();
-      console.error("Postgres sync error:", errorData);
-    }
-  } catch (err) {
-    console.error("Failed to sync user to Postgres:", err);
-  }
+export async function syncUserToPostgres(user: Pick<UserProfile, 'uid' | 'name' | 'email'>): Promise<UserProfile> {
+  const res = await fetchWithCsrf('/mahasiswa/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: user.uid, nama: user.name, email: user.email }),
+  });
+  if (!res.ok) throw new Error('Gagal memuat profil dari server. Silakan coba lagi.');
+  const profile = await res.json();
+  return { uid: profile.id, name: profile.nama, email: profile.email, role: profile.role, createdAt: profile.created_at };
 }
 
 export async function uploadFile(file: File) {
@@ -131,7 +120,7 @@ export async function getLogsFromPostgres(courseId: string, studentId?: string) 
     groupId: log.grup_id,
     courseId: log.matakuliah_id,
     studentName: log.mahasiswa?.nama,
-    timestamp: { seconds: new Date(log.created_at).getTime() / 1000, nanoseconds: 0 } // Mock Firebase timestamp for compatibility
+    timestamp: log.created_at
   }));
 
   return mappedLogs; 

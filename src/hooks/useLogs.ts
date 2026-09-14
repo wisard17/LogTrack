@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogEntry } from '../firebase';
+import type { LogEntry } from '../types';
 import { toDate } from '@/lib/utils-date';
 import { getLogsFromPostgres } from '../services/api';
 

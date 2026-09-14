@@ -25,7 +25,7 @@ import {
   Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Course, LogEntry, ProjectGroup, UserProfile } from '../../firebase';
+import type { Course, LogEntry, ProjectGroup, UserProfile } from '../../types';
 import { 
   deleteLogFromPostgres, 
   createGroupInPostgres, 

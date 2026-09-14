@@ -88,6 +88,33 @@ class MatakuliahIntegrationTest(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/grup/{group2}").status_code, 400)
         self.assertEqual(len(self.client.get("/logbook", params={"matakuliah_id": mk2, "mahasiswa_id": "student-a"}).json()), 1)
 
+    def test_login_uses_postgres_and_preserves_roles_memberships_and_logs(self):
+        self.client.patch('/mahasiswa?id=student-a', json={'role': 'admin'})
+        before = self.client.get('/mahasiswa/student-a').json()
+        response = self.client.post('/mahasiswa/login', json={
+            'id': 'student-a', 'nama': 'Nama Google Baru', 'email': 'a@unsrat.ac.id',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['role'], 'admin')
+        self.assertEqual(response.json()['grup_id'], before['grup_id'])
+        self.assertEqual(response.json()['created_at'], before['created_at'])
+        self.assertEqual(response.json()['nama'], 'Nama Google Baru')
+        courses = self.client.get('/matakuliah?mahasiswa_id=student-a').json()
+        self.assertEqual(len(courses), 1)
+        self.assertEqual(len(self.client.get('/logbook', params={'matakuliah_id': courses[0]['id']}).json()), 1)
+        with patch.dict(os.environ, {'ADMIN_EMAIL': 'owner@unsrat.ac.id'}):
+            created = self.client.post('/mahasiswa/login', json={
+                'id': 'owner', 'nama': 'Owner', 'email': 'owner@unsrat.ac.id',
+            })
+            self.assertEqual(created.json()['role'], 'admin')
+        student = self.client.post('/mahasiswa/login', json={
+            'id': 'new-student', 'nama': 'Baru', 'email': 'baru@unsrat.ac.id', 'role': 'admin',
+        })
+        self.assertEqual(student.json()['role'], 'student')
+        self.assertEqual(self.client.post('/mahasiswa/login', json={
+            'id': 'outside', 'nama': 'Outside', 'email': 'outside@example.com',
+        }).status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

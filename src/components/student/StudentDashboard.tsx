@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { LogEntry, ProjectGroup } from '../../firebase';
+import type { LogEntry, ProjectGroup } from '../../types';
 import { uploadFile, createLogEntry, deleteLogFromPostgres } from '../../services/api';
 import { formatDate } from '@/lib/utils-date';
 

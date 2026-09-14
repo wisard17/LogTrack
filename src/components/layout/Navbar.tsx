@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, LayoutDashboard, Settings, User as UserIcon } from 'lucide-react';
-import { logout, Course } from '../../firebase';
+import { logout } from '../../firebase';
+import type { Course } from '../../types';
 import { toast } from 'sonner';
 
 interface NavbarProps {

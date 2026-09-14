@@ -14,7 +14,7 @@ import { StudentDashboard } from './components/student/StudentDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 
 export default function App() {
-  const { user, profile, loading, isAuthReady, isAdmin } = useAuth();
+  const { user, profile, loading, isAuthReady, isAdmin, error: authError, retry } = useAuth();
   const { groups: allGroups, allUsers, courses, error, refresh, revision } = useGroups(user?.uid, isAdmin, isAuthReady);
   const [selection, setSelection] = useState({ userId: '', courseId: '' });
   const courseId = selection.userId === user?.uid && courses.some(c => c.id === selection.courseId)
@@ -43,6 +43,13 @@ export default function App() {
       </>
     );
   }
+
+  if (authError) return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
+      <p role="alert">{authError}</p>
+      <button onClick={retry} className="rounded-lg bg-primary px-4 py-2 text-white">Coba Lagi</button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased">
