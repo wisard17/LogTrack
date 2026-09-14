@@ -160,10 +160,10 @@ export function StudentDashboard({ user, profile, logs, groups, courseName, onCh
                 <div className="space-y-3">
                   <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-primary" />
-                    Minggu Ke-
+                    Logbook Ke-
                   </label>
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20].map((num) => (
                       <button
                         key={num}
                         type="button"
