@@ -162,11 +162,12 @@ export function StudentDashboard({ user, profile, logs, groups, courseName, onCh
                     <Calendar className="h-4 w-4 text-primary" />
                     Logbook Ke-
                   </label>
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex flex-wrap gap-2 pb-2">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20].map((num) => (
                       <button
                         key={num}
                         type="button"
+                        aria-pressed={weekNumber === num}
                         onClick={() => setWeekNumber(num)}
                         className={`flex h-10 w-10 min-w-[40px] items-center justify-center rounded-xl border-2 text-sm font-bold transition-all ${
                           weekNumber === num 
