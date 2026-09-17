@@ -16,14 +16,10 @@ export function useGroups(userId: string | undefined, isAdmin: boolean, ready: b
       busy = true;
       try {
         const [groups, courses, allUsers] = await Promise.all([
-          getGroupsFromPostgres(), getCourses(),
+          getGroupsFromPostgres(), getCourses(isAdmin ? undefined : userId, !isAdmin),
           isAdmin ? getUsersFromPostgres() : Promise.resolve([]),
         ]);
-        // Include courses with groups so students can join before they are enrolled.
-        const visibleCourses = isAdmin ? courses : courses
-          .filter(course => course.members.includes(userId) || groups.some(group => group.courseId === course.id))
-          .sort((a, b) => Number(b.members.includes(userId)) - Number(a.members.includes(userId)));
-        if (active) { setData({ owner: userId, groups, courses: visibleCourses, allUsers }); setError(''); }
+        if (active) { setData({ owner: userId, groups, courses, allUsers }); setError(''); }
       } catch {
         if (active) setError('Gagal memuat mata kuliah. Periksa koneksi Anda atau coba lagi nanti.');
       } finally { busy = false; }

@@ -199,10 +199,16 @@ export async function deleteLogFromPostgres(logId: string) {
   return true;
 }
 
-export async function getCourses(studentId?: string): Promise<Course[]> {
-  const res = await fetchWithCsrf('/matakuliah' + (studentId ? '?mahasiswa_id=' + encodeURIComponent(studentId) : ''));
+export async function getCourses(studentId?: string, includeAvailable = false): Promise<Course[]> {
+  const res = await fetchWithCsrf('/matakuliah' + (studentId ? '?mahasiswa_id=' + encodeURIComponent(studentId) + (includeAvailable ? '&include_available=true' : '') : ''));
   if (!res.ok) throw new Error('Gagal mengambil mata kuliah');
-  return (await res.json()).map((c: any) => ({ id: c.id, name: c.nama, members: c.members }));
+  return (await res.json()).map((c: any) => ({ id: c.id, name: c.nama, members: c.members, active: c.active ?? true }));
+}
+
+export function saveCourseStatus(courseId: string, active: boolean) {
+  return selectionRequest(`/matakuliah/${courseId}/status`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
+  });
 }
 
 export async function saveCourse(name: string, id?: string) {

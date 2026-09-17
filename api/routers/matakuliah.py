@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from api.db_utils import fetch_all, fetch_one, execute_returning_one
 from api.group_selection_config import save_deadline, selection_status
+from api.course_config import read_course_config, is_course_active, set_course_active
 
 router = APIRouter(prefix="/matakuliah", tags=["matakuliah"])
 
@@ -36,6 +37,18 @@ class SelectionDeadline(BaseModel):
 
 class SelectGroup(BaseModel):
     grup_id: UUID
+
+
+class CourseStatus(BaseModel):
+    active: bool
+
+
+@router.put("/{matakuliah_id}/status")
+def update_course_status(matakuliah_id: UUID, payload: CourseStatus):
+    if not fetch_one("SELECT id FROM matakuliah WHERE id = :id", {"id": str(matakuliah_id)}):
+        raise HTTPException(404, "Mata kuliah tidak ditemukan")
+    set_course_active(matakuliah_id, payload.active)
+    return {"active": payload.active}
 
 
 @router.get("/{matakuliah_id}/group-selection")
@@ -73,8 +86,8 @@ def select_group(matakuliah_id: UUID, mahasiswa_id: str, payload: SelectGroup):
 
 
 @router.get("")
-def list_matakuliah(mahasiswa_id: str | None = None):
-    return fetch_all(
+def list_matakuliah(mahasiswa_id: str | None = None, include_available: bool = False):
+    courses = fetch_all(
         """SELECT mk.id, mk.nama, mk.created_at,
             COALESCE((SELECT json_agg(p.mahasiswa_id) FROM peserta_matakuliah p
                       WHERE p.matakuliah_id = mk.id), '[]'::json) AS members
@@ -83,8 +96,16 @@ def list_matakuliah(mahasiswa_id: str | None = None):
              SELECT 1 FROM peserta_matakuliah p
              WHERE p.matakuliah_id = mk.id AND p.mahasiswa_id = :mahasiswa_id))
            ORDER BY mk.nama""",
-        {"mahasiswa_id": mahasiswa_id},
+        {"mahasiswa_id": None if include_available else mahasiswa_id},
     )
+    config = read_course_config()
+    for course in courses:
+        course['active'] = is_course_active(course['id'], config)
+    if mahasiswa_id and include_available:
+        courses = [course for course in courses if course['active'] and (
+            mahasiswa_id in course['members'] or selection_status(course['id'])['is_open'])]
+        courses.sort(key=lambda course: mahasiswa_id not in course['members'])
+    return courses
 
 
 @router.post("", status_code=201)

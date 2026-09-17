@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
+from api.course_config import is_course_active
 
 CONFIG_DIR = Path(__file__).resolve().parent / "config" / "group_selection"
 
@@ -40,4 +41,4 @@ def selection_status(course_id: UUID) -> dict:
     now = datetime.now(timezone.utc)
     deadline = read_deadline(course_id)
     return {"deadline": deadline, "server_now": now,
-            "is_open": deadline is not None and now < deadline}
+            "is_open": is_course_active(course_id) and deadline is not None and now < deadline}

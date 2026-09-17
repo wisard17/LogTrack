@@ -8,6 +8,7 @@ export interface UserProfile {
 }
 
 export interface Course {
+  active?: boolean;
   id: string;
   name: string;
   members: string[];

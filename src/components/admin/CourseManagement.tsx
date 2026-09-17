@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Course, ProjectGroup, UserProfile } from '../../types';
-import { saveCourse } from '../../services/api';
+import { saveCourse, saveCourseStatus } from '../../services/api';
 
 interface CourseManagementProps {
   courses: Course[];
@@ -21,6 +21,7 @@ export function CourseManagement({ courses, groups, users, onChanged }: CourseMa
   const [editingId, setEditingId] = useState<string | undefined>();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   const openForm = (course?: Course) => {
     setEditingId(course?.id);
@@ -60,12 +61,13 @@ export function CourseManagement({ courses, groups, users, onChanged }: CourseMa
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">MK</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Status</th>
                 <th scope="col" className="px-4 py-3 text-center font-semibold">Jumlah Kelompok</th>
                 <th scope="col" className="px-4 py-3 text-center font-semibold">Jumlah Mahasiswa</th>
               </tr>
             </thead>
             <tbody>
-              {courses.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-slate-500">Belum ada mata kuliah. Klik Tambah MK untuk membuatnya.</td></tr>}
+              {courses.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-500">Belum ada mata kuliah. Klik Tambah MK untuk membuatnya.</td></tr>}
               {courses.map(course => {
                 const courseGroups = groups.filter(group => group.courseId === course.id);
                 const expanded = expandedId === course.id;
@@ -81,11 +83,23 @@ export function CourseManagement({ courses, groups, users, onChanged }: CourseMa
                           {course.name}
                         </button>
                       </th>
+                      <td className="px-4 py-3">
+                        <Button size="sm" variant={course.active === false ? 'outline' : 'secondary'}
+                          aria-label={`${course.active === false ? 'Aktifkan' : 'Nonaktifkan'} ${course.name}`}
+                          disabled={updatingStatus !== null} onClick={async event => {
+                            event.stopPropagation(); setUpdatingStatus(course.id);
+                            try {
+                              await saveCourseStatus(course.id, course.active === false);
+                              onChanged(); toast.success('Status MK diperbarui');
+                            } catch (error) { toast.error(error instanceof Error ? error.message : 'Gagal mengubah status MK'); }
+                            finally { setUpdatingStatus(null); }
+                          }}>{updatingStatus === course.id ? 'Menyimpan...' : course.active === false ? 'Nonaktif' : 'Aktif'}</Button>
+                      </td>
                       <td className="px-4 py-3 text-center">{courseGroups.length}</td>
                       <td className="px-4 py-3 text-center">{new Set(course.members).size}</td>
                     </tr>
                     {expanded && <tr id={`course-details-${course.id}`}>
-                      <td colSpan={3} className="border-t border-slate-100 bg-slate-50/50 p-4">
+                      <td colSpan={4} className="border-t border-slate-100 bg-slate-50/50 p-4">
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                           <h3 className="flex items-center gap-2 font-semibold"><BookOpen className="h-4 w-4" />Kelompok — {course.name}</h3>
                           <Button variant="outline" size="sm" onClick={() => openForm(course)}>Ubah Nama MK</Button>
