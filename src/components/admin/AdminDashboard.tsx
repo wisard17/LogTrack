@@ -34,7 +34,9 @@ import {
   updateUserRoleInPostgres
 } from '../../services/api';
 import { CourseManagement } from './CourseManagement';
+import { GroupSelectionSettings } from './GroupSelectionSettings';
 import { formatDate } from '@/lib/utils-date';
+
 
 interface AdminDashboardProps {
   courses: Course[];
@@ -244,6 +246,7 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
         </TabsContent>
         <TabsContent value="groups" className="space-y-6">
           {courseFilter('group-course')}
+          {courseId && <div key={courseId}><GroupSelectionSettings courseId={courseId} /></div>}
           <Card className="border-none shadow-sm">
             <CardHeader>
               <CardTitle>Buat Kelompok Baru</CardTitle>

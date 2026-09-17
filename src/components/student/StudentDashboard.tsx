@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import type { LogEntry, ProjectGroup } from '../../types';
 import { uploadFile, createLogEntry, deleteLogFromPostgres } from '../../services/api';
 import { formatDate } from '@/lib/utils-date';
+import { GroupPicker } from './GroupPicker';
 
 interface StudentDashboardProps {
   courseName?: string;
@@ -38,9 +39,10 @@ interface StudentDashboardProps {
   profile: any;
   logs: LogEntry[];
   groups: ProjectGroup[];
+  courseId?: string;
 }
 
-export function StudentDashboard({ user, profile, logs, groups, courseName, onChanged }: StudentDashboardProps) {
+export function StudentDashboard({ user, profile, logs, groups, courseName, courseId, onChanged }: StudentDashboardProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weekNumber, setWeekNumber] = useState<number>(1);
@@ -248,6 +250,7 @@ export function StudentDashboard({ user, profile, logs, groups, courseName, onCh
           </DialogContent>
         </Dialog>
       </div>
+      {!userGroup && courseId && <div key={courseId}><GroupPicker courseId={courseId} studentId={user.uid} groups={groups} onChanged={onChanged} /></div>}
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">

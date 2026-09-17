@@ -83,6 +83,7 @@ export default function App() {
           />
         ) : (
           <div key={courseId}><StudentDashboard
+            courseId={courseId}
             courseName={courses.find(c => c.id === courseId)?.name}
             onChanged={refresh}
             user={user} 

@@ -1,9 +1,11 @@
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from api.db_utils import fetch_all, fetch_one, execute_returning_one
+from api.group_selection_config import save_deadline, selection_status
 
 router = APIRouter(prefix="/matakuliah", tags=["matakuliah"])
 
@@ -19,6 +21,52 @@ class MatakuliahCreate(BaseModel):
 
 class PesertaUpdate(BaseModel):
     grup_id: UUID | None = None
+
+
+class SelectionDeadline(BaseModel):
+    deadline: datetime | None = None
+
+    @field_validator("deadline")
+    @classmethod
+    def require_timezone(cls, value):
+        if value is not None and value.utcoffset() is None:
+            raise ValueError("Deadline harus menyertakan zona waktu")
+        return value
+
+
+class SelectGroup(BaseModel):
+    grup_id: UUID
+
+
+@router.get("/{matakuliah_id}/group-selection")
+def get_group_selection(matakuliah_id: UUID):
+    return selection_status(matakuliah_id)
+
+
+@router.put("/{matakuliah_id}/group-selection")
+def set_group_selection(matakuliah_id: UUID, payload: SelectionDeadline):
+    if not fetch_one("SELECT id FROM matakuliah WHERE id = :id", {"id": str(matakuliah_id)}):
+        raise HTTPException(404, "Mata kuliah tidak ditemukan")
+    save_deadline(matakuliah_id, payload.deadline)
+    return selection_status(matakuliah_id)
+
+
+@router.post("/{matakuliah_id}/peserta/{mahasiswa_id}/pilih-kelompok")
+def select_group(matakuliah_id: UUID, mahasiswa_id: str, payload: SelectGroup):
+    if not selection_status(matakuliah_id)["is_open"]:
+        raise HTTPException(403, "Pemilihan kelompok belum dibuka atau deadline sudah lewat")
+    # A single conditional UPDATE prevents simultaneous choices from replacing a group.
+    result = fetch_one(
+        """UPDATE peserta_matakuliah p SET grup_id = :grup
+           WHERE p.mahasiswa_id = :mahasiswa AND p.matakuliah_id = :mk
+             AND p.grup_id IS NULL
+             AND EXISTS (SELECT 1 FROM grup g WHERE g.id = :grup AND g.matakuliah_id = :mk)
+           RETURNING mahasiswa_id, matakuliah_id, grup_id""",
+        {"mahasiswa": mahasiswa_id, "mk": str(matakuliah_id), "grup": str(payload.grup_id)},
+    )
+    if not result:
+        raise HTTPException(409, "Pilihan tidak dapat disimpan. Pastikan Anda terdaftar pada MK, belum memiliki kelompok, dan memilih kelompok pada MK ini.")
+    return result
 
 
 @router.get("")

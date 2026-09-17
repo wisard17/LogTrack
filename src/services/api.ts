@@ -213,3 +213,35 @@ export async function saveCourse(name: string, id?: string) {
   if (!res.ok) throw new Error('Gagal menyimpan mata kuliah. Pastikan nama belum digunakan.');
   return res.json();
 }
+
+
+export interface GroupSelectionStatus {
+  deadline: string | null;
+  server_now: string;
+  is_open: boolean;
+}
+
+async function selectionRequest(url: string, options?: RequestInit) {
+  const response = await fetchWithCsrf(url, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Gagal memproses pemilihan kelompok');
+  }
+  return response.json();
+}
+
+export function getGroupSelection(courseId: string): Promise<GroupSelectionStatus> {
+  return selectionRequest(`/matakuliah/${courseId}/group-selection`);
+}
+
+export function saveGroupSelection(courseId: string, deadline: string | null): Promise<GroupSelectionStatus> {
+  return selectionRequest(`/matakuliah/${courseId}/group-selection`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deadline }),
+  });
+}
+
+export function selectStudentGroup(courseId: string, studentId: string, groupId: string) {
+  return selectionRequest(`/matakuliah/${courseId}/peserta/${encodeURIComponent(studentId)}/pilih-kelompok`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grup_id: groupId }),
+  });
+}

@@ -101,3 +101,15 @@ test('login reads the PostgreSQL role and does not submit a client role', async 
     await assert.rejects(syncUserToPostgres({ uid: 'student', name: 'Nama', email: 'student@unsrat.ac.id' }), /Gagal memuat profil/);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('group picker is shown only for enrolled students without a group and starts disabled', () => {
+  const props = { user: { uid: 'student' }, profile: { name: 'Mahasiswa' },
+    courseId: 'mk1', courseName: 'MK Satu', onChanged: noop, logs: [], groups: [] };
+  const html = dashboard(props);
+  assert.match(html, /Anda belum memiliki kelompok pada mata kuliah ini/);
+  assert.match(html, /<button[^>]*disabled[^>]*>Pilih Kelompok<\/button>/);
+  assert.doesNotMatch(dashboard({ ...props, courseId: '' }), />Pilih Kelompok</);
+  assert.doesNotMatch(dashboard({ ...props, groups: [
+      { id: 'g1', courseId: 'mk1', name: 'Kelompok 1', members: ['student'] },
+    ] }), />Pilih Kelompok</);
+});

@@ -8,7 +8,9 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
+import tempfile
 
+from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
@@ -114,6 +116,23 @@ class MatakuliahIntegrationTest(unittest.TestCase):
         self.assertEqual(self.client.post('/mahasiswa/login', json={
             'id': 'outside', 'nama': 'Outside', 'email': 'outside@example.com',
         }).status_code, 403)
+        
+    def test_self_selection_cannot_replace_group_or_cross_courses(self):
+        with tempfile.TemporaryDirectory() as directory, patch('api.group_selection_config.CONFIG_DIR', Path(directory)):
+            from api.group_selection_config import save_deadline
+            course = self.client.get('/matakuliah?mahasiswa_id=student-a').json()[0]['id']
+            group = self.client.get('/grup', params={'matakuliah_id': course}).json()[0]['id']
+            save_deadline(course, datetime.now(timezone.utc) + timedelta(days=1))
+            url = f'/matakuliah/{course}/peserta/student-a/pilih-kelompok'
+            self.assertEqual(self.client.post(url, json={'grup_id': group}).status_code, 409)
+            self.client.put(f'/matakuliah/{course}/peserta/student-a', json={'grup_id': None})
+            other = self.client.post('/matakuliah', json={'nama': 'MK lain'}).json()['id']
+            other_group = self.client.post('/grup', json={'nama': 'Grup lain', 'matakuliah_id': other}).json()['id']
+            self.assertEqual(self.client.post(url, json={'grup_id': other_group}).status_code, 409)
+            unknown = f'/matakuliah/{course}/peserta/unknown/pilih-kelompok'
+            self.assertEqual(self.client.post(unknown, json={'grup_id': group}).status_code, 409)
+            self.assertEqual(self.client.post(url, json={'grup_id': group}).status_code, 200)
+            self.assertEqual(self.client.post(url, json={'grup_id': group}).status_code, 409)
 
 
 if __name__ == "__main__":
