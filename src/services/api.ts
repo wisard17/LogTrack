@@ -149,7 +149,8 @@ export async function getUsersFromPostgres() {
     name: u.nama,
     email: u.email,
     role: u.role,
-    groupId: u.grup_id
+    groupId: u.grup_id,
+    createdAt: u.created_at
   }));
 }
 

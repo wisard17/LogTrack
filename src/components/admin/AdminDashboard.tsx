@@ -56,6 +56,19 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
   const [adminTab, setAdminTab] = useState('courses');
   const [newGroupName, setNewGroupName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [registrationOrder, setRegistrationOrder] = useState('newest');
+  const visibleStudents = allUsers
+    .filter(student => student.name.toLocaleLowerCase('id-ID').includes(studentSearch.trim().toLocaleLowerCase('id-ID')))
+    .sort((a, b) => {
+      const first = a.createdAt ? Date.parse(a.createdAt) : NaN;
+      const second = b.createdAt ? Date.parse(b.createdAt) : NaN;
+      // Missing dates always appear last, in either direction.
+      if (Number.isNaN(first) && !Number.isNaN(second)) return 1;
+      if (!Number.isNaN(first) && Number.isNaN(second)) return -1;
+      const difference = registrationOrder === 'newest' ? second - first : first - second;
+      return (Number.isNaN(difference) ? 0 : difference) || a.name.localeCompare(b.name, 'id-ID') || a.uid.localeCompare(b.uid);
+    });
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,17 +183,38 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
             <div className="space-y-4">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
                 <Settings className="h-5 w-5 text-primary" />
-                Manajemen Mahasiswa ({allUsers.length})
+                Manajemen Mahasiswa ({visibleStudents.length} dari {allUsers.length})
               </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="student-name-search" className="text-sm font-medium">Cari nama mahasiswa</label>
+                  <Input id="student-name-search" type="search" placeholder="Ketik nama mahasiswa..."
+                    value={studentSearch} onChange={event => setStudentSearch(event.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="student-registration-order" className="text-sm font-medium">Urutkan tanggal daftar</label>
+                  <select id="student-registration-order" value={registrationOrder} onChange={event => setRegistrationOrder(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="newest">Terbaru dahulu</option>
+                    <option value="oldest">Terlama dahulu</option>
+                  </select>
+                </div>
+              </div>
               <ScrollArea className="h-[500px] rounded-xl border border-slate-200 bg-white p-4">
                 <div className="space-y-2">
-                  {allUsers.map((student) => {
+                  {visibleStudents.length === 0 && <p role="status" className="p-6 text-center text-sm text-slate-500">
+                    {studentSearch.trim() ? 'Tidak ada mahasiswa dengan nama tersebut.' : 'Belum ada mahasiswa terdaftar.'}
+                  </p>}
+                  {visibleStudents.map((student) => {
                     const studentGroup = groups.find(g => g.members.includes(student.uid));
                     return (
                       <div key={student.uid} className="flex items-center justify-between rounded-lg border border-slate-50 p-3 transition-colors hover:bg-slate-50">
                         <div>
                           <p className="text-sm font-medium">{student.name}</p>
                           <p className="text-xs text-muted-foreground">{student.email}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Tanggal daftar: {formatDate(student.createdAt, {
+                            day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                          })}</p>
                           <div className="mt-1 flex flex-wrap gap-1">
                             {studentGroup && (
                               <Badge variant="outline" className="text-[10px] h-4">
