@@ -160,9 +160,9 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
           <TabsList aria-label="Menu admin" className="min-w-max">
             <TabsTrigger value="courses"><BookOpen />Matakuliah</TabsTrigger>
             <TabsTrigger value="students"><GraduationCap />Mahasiswa</TabsTrigger>
-            <TabsTrigger value="admins"><Settings />Daftar Admin</TabsTrigger>
             <TabsTrigger value="groups"><Users />Kelompok/Grup</TabsTrigger>
             <TabsTrigger value="logs"><FileText />Monitoring Log</TabsTrigger>
+            <TabsTrigger value="admins"><Settings />Daftar Admin</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="courses" className="space-y-6">
