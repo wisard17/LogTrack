@@ -203,18 +203,19 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
                             <Settings className="h-4 w-4" />
                           </Button>
                           <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Plus className="h-4 w-4" />
-                              </Button>
+                            <DialogTrigger
+                              render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0" />}
+                              aria-label={`Pilih kelompok untuk ${student.name}`}
+                            >
+                              <Plus className="h-4 w-4" />
                             </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
+                            <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden">
+                              <DialogHeader className="shrink-0 pr-6">
                                 <DialogTitle>Pilih Kelompok — {courseName}</DialogTitle>
                                 <DialogDescription>Pindahkan {student.name} ke kelompok:</DialogDescription>
                               </DialogHeader>
-                              <div className="grid gap-2 py-4">
-                                {courseId && <Button variant="outline" onClick={async () => {
+                              <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain py-2 pr-2">
+                                {courseId && <Button variant="outline" className="h-auto min-h-10 whitespace-normal py-2 text-left" onClick={async () => {
                                   try { await updateStudentGroupInPostgres(student.uid, null, courseId); onChanged(); toast.success('Terdaftar pada MK tanpa kelompok'); }
                                   catch { toast.error('Gagal mendaftarkan mahasiswa'); }
                                 }}>Daftarkan ke MK tanpa kelompok</Button>}
@@ -222,11 +223,11 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
                                   <Button 
                                     key={g.id} 
                                     variant={studentGroup?.id === g.id ? 'secondary' : 'outline'}
-                                    className="justify-start"
+                                    className="h-auto min-h-10 justify-start whitespace-normal py-2 text-left"
                                     onClick={() => g.id && handleToggleMember(g.id, student.uid, studentGroup?.id === g.id)}
                                   >
-                                    {g.name}
-                                    {studentGroup?.id === g.id && <CheckCircle2 className="ml-auto h-4 w-4 text-primary" />}
+                                    <span className="min-w-0 break-words">{g.name}</span>
+                                    {studentGroup?.id === g.id && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-primary" />}
                                   </Button>
                                 ))}
                               </div>
