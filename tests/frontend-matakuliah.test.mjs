@@ -12,9 +12,11 @@ const bundle = await build({
       import { renderToStaticMarkup } from 'react-dom/server';
       import { Navbar } from './src/components/layout/Navbar';
       import { StudentDashboard } from './src/components/student/StudentDashboard';
+      import { AdminManagement } from './src/components/admin/AdminManagement';
       export * from './src/services/api';
       export const navbar = props => renderToStaticMarkup(React.createElement(Navbar, props));
       export const dashboard = props => renderToStaticMarkup(React.createElement(StudentDashboard, props));
+      export const adminManagement = props => renderToStaticMarkup(React.createElement(AdminManagement, props));
     `,
     resolveDir: process.cwd(), loader: 'tsx',
   },
@@ -112,4 +114,15 @@ test('group picker is shown for an active course without a group and starts disa
   assert.doesNotMatch(dashboard({ ...props, groups: [
       { id: 'g1', courseId: 'mk1', name: 'Kelompok 1', members: ['student'] },
     ] }), />Pilih Kelompok</);
+});
+
+test('admin list shows only administrators and provides the add action', () => {
+  const html = compiled.exports.adminManagement({ users: [
+    { uid: 'admin', name: 'Admin Satu', email: 'admin@unsrat.ac.id', role: 'admin' },
+    { uid: 'student', name: 'Mahasiswa Satu', email: 'student@unsrat.ac.id', role: 'student' },
+  ], onChanged: noop });
+  assert.match(html, /Admin Satu/);
+  assert.match(html, /admin@unsrat.ac.id/);
+  assert.match(html, /Tambah Admin/);
+  assert.doesNotMatch(html, /Mahasiswa Satu/);
 });

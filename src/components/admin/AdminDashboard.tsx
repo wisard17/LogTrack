@@ -30,11 +30,11 @@ import {
   deleteLogFromPostgres, 
   createGroupInPostgres, 
   deleteGroupFromPostgres, 
-  updateStudentGroupInPostgres,
-  updateUserRoleInPostgres
+  updateStudentGroupInPostgres
 } from '../../services/api';
 import { CourseManagement } from './CourseManagement';
 import { GroupSelectionSettings } from './GroupSelectionSettings';
+import { AdminManagement } from './AdminManagement';
 import { formatDate } from '@/lib/utils-date';
 
 
@@ -115,18 +115,6 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
     }
   };
 
-  const handleToggleAdmin = async (targetUser: UserProfile) => {
-    try {
-      const newRole = targetUser.role === 'admin' ? 'student' : 'admin';
-      await updateUserRoleInPostgres(targetUser.uid, newRole);
-      onChanged();
-      toast.success(`User berhasil dijadikan ${newRole}`);
-    } catch (error) {
-      console.error("Gagal mengubah role user:", error);
-      toast.error('Gagal mengubah role user');
-    }
-  };
-
   const handleDeleteLog = async (logId: string) => {
     if (!confirm('Hapus logbook ini?')) return;
     try {
@@ -171,6 +159,7 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
           <TabsList aria-label="Menu admin" className="min-w-max">
             <TabsTrigger value="courses"><BookOpen />Matakuliah</TabsTrigger>
             <TabsTrigger value="students"><GraduationCap />Mahasiswa</TabsTrigger>
+            <TabsTrigger value="admins"><Settings />Daftar Admin</TabsTrigger>
             <TabsTrigger value="groups"><Users />Kelompok/Grup</TabsTrigger>
             <TabsTrigger value="logs"><FileText />Monitoring Log</TabsTrigger>
           </TabsList>
@@ -229,15 +218,6 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className={`h-8 w-8 p-0 ${student.role === 'admin' ? 'text-amber-600' : 'text-slate-400'}`}
-                            onClick={() => handleToggleAdmin(student)}
-                            title={student.role === 'admin' ? 'Hapus Admin' : 'Jadikan Admin'}
-                          >
-                            <Settings className="h-4 w-4" />
-                          </Button>
                           <Dialog>
                             <DialogTrigger
                               render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0" />}
@@ -277,6 +257,9 @@ export function AdminDashboard({ logs, logsLoading, logsError, groups, allGroups
               </ScrollArea>
             </div>
 
+        </TabsContent>
+        <TabsContent value="admins" className="space-y-6">
+          <AdminManagement users={allUsers} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="groups" className="space-y-6">
           {courseFilter('group-course')}
