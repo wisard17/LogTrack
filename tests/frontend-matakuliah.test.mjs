@@ -102,7 +102,7 @@ test('login reads the PostgreSQL role and does not submit a client role', async 
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('group picker is shown only for enrolled students without a group and starts disabled', () => {
+test('group picker is shown for an active course without a group and starts disabled', () => {
   const props = { user: { uid: 'student' }, profile: { name: 'Mahasiswa' },
     courseId: 'mk1', courseName: 'MK Satu', onChanged: noop, logs: [], groups: [] };
   const html = dashboard(props);

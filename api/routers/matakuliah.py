@@ -55,17 +55,20 @@ def set_group_selection(matakuliah_id: UUID, payload: SelectionDeadline):
 def select_group(matakuliah_id: UUID, mahasiswa_id: str, payload: SelectGroup):
     if not selection_status(matakuliah_id)["is_open"]:
         raise HTTPException(403, "Pemilihan kelompok belum dibuka atau deadline sudah lewat")
-    # A single conditional UPDATE prevents simultaneous choices from replacing a group.
+    # Enroll and join atomically; concurrent requests cannot replace an existing group.
     result = fetch_one(
-        """UPDATE peserta_matakuliah p SET grup_id = :grup
-           WHERE p.mahasiswa_id = :mahasiswa AND p.matakuliah_id = :mk
-             AND p.grup_id IS NULL
-             AND EXISTS (SELECT 1 FROM grup g WHERE g.id = :grup AND g.matakuliah_id = :mk)
+        """INSERT INTO peserta_matakuliah (mahasiswa_id, matakuliah_id, grup_id)
+           SELECT m.id, g.matakuliah_id, g.id
+           FROM mahasiswa m CROSS JOIN grup g
+           WHERE m.id = :mahasiswa AND g.id = :grup AND g.matakuliah_id = :mk
+           ON CONFLICT (mahasiswa_id, matakuliah_id)
+           DO UPDATE SET grup_id = EXCLUDED.grup_id
+           WHERE peserta_matakuliah.grup_id IS NULL
            RETURNING mahasiswa_id, matakuliah_id, grup_id""",
         {"mahasiswa": mahasiswa_id, "mk": str(matakuliah_id), "grup": str(payload.grup_id)},
     )
     if not result:
-        raise HTTPException(409, "Pilihan tidak dapat disimpan. Pastikan Anda terdaftar pada MK, belum memiliki kelompok, dan memilih kelompok pada MK ini.")
+        raise HTTPException(409, "Pilihan tidak dapat disimpan. Anda sudah memiliki kelompok, kelompok tidak sesuai MK, atau profil mahasiswa belum tersedia. Muat ulang halaman untuk memperbarui data.")
     return result
 
 

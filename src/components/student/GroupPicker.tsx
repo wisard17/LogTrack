@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { getGroupSelection, selectStudentGroup, type GroupSelectionStatus } from '../../services/api';
-import type { ProjectGroup } from '../../firebase';
+import type { ProjectGroup } from '../../types';
 import { toast } from 'sonner';
 
 export function GroupPicker({ courseId, studentId, groups, onChanged }: {
@@ -40,10 +40,11 @@ export function GroupPicker({ courseId, studentId, groups, onChanged }: {
   }, [courseId]);
   const availableGroups = groups.filter(group => group.courseId === courseId);
   const canChoose = Boolean(status?.is_open && now < expiresAt && !joined);
+  if (joined || availableGroups.some(group => group.members.includes(studentId))) return null;
   return <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
     <p className="font-semibold">Anda belum memiliki kelompok pada mata kuliah ini.</p>
     <p className="text-sm text-slate-500" role="status">{error || (!status ? 'Memuat deadline pemilihan kelompok...' :
-      joined ? 'Kelompok berhasil dipilih. Memperbarui data...' : !status.deadline ? 'Pemilihan kelompok belum dibuka oleh admin.' :
+      !status.deadline ? 'Pemilihan kelompok belum dibuka oleh admin.' :
       `${canChoose ? 'Pilih kelompok sebelum' : 'Pemilihan kelompok ditutup. Deadline:'} ${new Date(status.deadline).toLocaleString('id-ID')}`)}</p>
     {status && !availableGroups.length && <p className="text-sm text-slate-500">Belum ada kelompok tersedia. Hubungi admin.</p>}
     <Button disabled={!canChoose || !availableGroups.length} onClick={() => setOpen(true)}>Pilih Kelompok</Button>
@@ -51,7 +52,7 @@ export function GroupPicker({ courseId, studentId, groups, onChanged }: {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Pilih Kelompok</DialogTitle>
-          <DialogDescription>Pilih kelompok untuk mata kuliah aktif. Setelah tersimpan, perubahan kelompok dilakukan oleh admin.</DialogDescription>
+          <DialogDescription>Memilih kelompok otomatis mendaftarkan Anda ke mata kuliah kelompok ini. Setelah tersimpan, perubahan kelompok dilakukan oleh admin.</DialogDescription>
         </DialogHeader>
         <label htmlFor="student-group-choice" className="text-sm font-medium">Kelompok</label>
         <select id="student-group-choice" value={selected} onChange={event => setSelected(event.target.value)}

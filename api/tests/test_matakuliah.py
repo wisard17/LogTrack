@@ -133,6 +133,15 @@ class MatakuliahIntegrationTest(unittest.TestCase):
             self.assertEqual(self.client.post(unknown, json={'grup_id': group}).status_code, 409)
             self.assertEqual(self.client.post(url, json={'grup_id': group}).status_code, 200)
             self.assertEqual(self.client.post(url, json={'grup_id': group}).status_code, 409)
+            # An existing student can join another course without prior enrollment.
+            save_deadline(other, datetime.now(timezone.utc) + timedelta(days=1))
+            other_url = f'/matakuliah/{other}/peserta/student-a/pilih-kelompok'
+            self.assertEqual(len(self.client.get('/matakuliah?mahasiswa_id=student-a').json()), 1)
+            self.assertEqual(self.client.post(other_url, json={'grup_id': other_group}).status_code, 200)
+            self.assertEqual(len(self.client.get('/matakuliah?mahasiswa_id=student-a').json()), 2)
+            self.assertEqual(self.client.get('/grup', params={'matakuliah_id': other}).json()[0]['mahasiswa'][0]['id'], 'student-a')
+            self.assertEqual(self.client.get('/grup', params={'matakuliah_id': course}).json()[0]['mahasiswa'][0]['id'], 'student-a')
+            self.assertEqual(self.client.post(other_url, json={'grup_id': other_group}).status_code, 409)
 
 
 if __name__ == "__main__":
